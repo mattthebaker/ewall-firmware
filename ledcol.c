@@ -3,8 +3,8 @@
 
 #include "ledcol.h"
 
-/* To set up the SPI module for the Enhanced Buffer
-Master mode of operation:
+/* 
+To set up the SPI module for the Enhanced Buffer Master mode of operation:
 1. If using interrupts:
     a) Clear the SPIxIF bit in the respective IFS register.
     b) Set the SPIxIE bit in the respective IEC register.
@@ -18,10 +18,16 @@ Master mode of operation:
   (and reception) will start as soon as
 */
 
-unsigned int gbright_r = MAX_CURRENT_R;
-unsigned int gbright_g = MAX_CURRENT_G;
-unsigned int gbright_b = MAX_CURRENT_B;
+static unsigned int gbright_r = MAX_CURRENT_R;
+static unsigned int gbright_g = MAX_CURRENT_G;
+static unsigned int gbright_b = MAX_CURRENT_B;
 
+/**
+ * Initialize the LED Column driver.
+ *
+ * Configures SPI1 and SPI2 modules for interfacing with the TLC5952 LED
+ * Driver chip.
+ */
 void ledcol_init(void) {
     // SPI1 Initialization
     _SPI1IF = 0;
@@ -56,16 +62,30 @@ void ledcol_init(void) {
     SPI2STATbits.SISEL = 5;     // interupt when transmission completes
 }
 
+/** Enable the SPI channels on the LED Column Driver.
+ */
 void ledcol_enable(void) {
     SPI1STATbits.SPIEN = 1;
     SPI2STATbits.SPIEN = 1;
 }
 
+/** Disable the SPI channels for the LED Column Driver.
+ */
 void ledcol_disable(void) {
     SPI1STATbits.SPIEN = 0;
     SPI2STATbits.SPIEN = 0;
 }
 
+/** Set the LED brightness.
+ *
+ * Sets the value of the current source in the LED driver.  Use this balance
+ * the brightness between the three color channels.  Be cautious not to
+ * exceed the current rating of the LEDs.
+ *
+ * @param Red Channel Brightness
+ * @param Green Channel Brightness
+ * @param Blue Channel Brightness
+ */
 void ledcol_setbrightness(unsigned int rb, unsigned int gb, unsigned int bb) {
     unsigned int tdata[2] = {0, 0};
 
@@ -96,14 +116,23 @@ void ledcol_display(unsigned int c0data[], unsigned int c1data[]) {
     SPI2BUF = c1data[0];
 }
 
+/** Fast disable of column drive.
+ */
 void ledcol_blank(void) {
     LEDCOL_PORT_C_BLANK = 1;
 }
 
+/** Fast reenable of column drive.
+ */
 void ledcol_unblank(void) {
     LEDCOL_PORT_C_BLANK = 0;
 }
 
+/** SPI1 Interrupt Service Handler
+ *
+ * Once the display string has been transmitted, latch the data and reset the
+ * bus to the default state.
+ */
 void _ISRFAST _SPI1Interrupt(void) {
     _SPI1IF = 0;    // clear interrupt flag
 
@@ -111,6 +140,11 @@ void _ISRFAST _SPI1Interrupt(void) {
     LEDCOL_PORT_C0_LAT = 0;
 }
 
+/** SPI2 Interrupt Service Handler
+ *
+ * Once the display string has been transmitted, latch the data and reset the
+ * bus to the default state.
+ */
 void _ISRFAST _SPI2Interrupt(void) {
     _SPI2IF = 0;    // clear interrupt flag
 
