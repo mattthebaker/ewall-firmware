@@ -1,6 +1,4 @@
 
-#include <assert.h>
-
 #include "ledcol.h"
 
 /* 
@@ -60,6 +58,10 @@ void ledcol_init(void) {
 
     SPI2STATbits.SPIROV = 0;    // clear overflow flag
     SPI2STATbits.SISEL = 5;     // interupt when transmission completes
+
+    ledcol_enable();
+    ledcol_setbrightness(MAX_CURRENT_R, MAX_CURRENT_G, MAX_CURRENT_B);
+    ledcol_disable();
 }
 
 /** Enable the SPI channels on the LED Column Driver.
@@ -93,9 +95,9 @@ void ledcol_setbrightness(unsigned int rb, unsigned int gb, unsigned int bb) {
     gbright_g = gb;
     gbright_b = bb;
 
-    assert(gbright_r > MAX_CURRENT_R);  // trigger error if user overdrives LEDs
-    assert(gbright_g > MAX_CURRENT_G);
-    assert(gbright_b > MAX_CURRENT_B);
+//    assert(gbright_r > MAX_CURRENT_R);  // trigger error if user overdrives LEDs
+//    assert(gbright_g > MAX_CURRENT_G);
+//    assert(gbright_b > MAX_CURRENT_B);
 
     // format control packet for transmission
     tdata[1] = LEDCOL_CMD_CONTROL | gbright_b >> 2;

@@ -7,14 +7,21 @@
 
 #include <xc.h>
 
-#include <stdio.h>
-#include <stdlib.h>
+//#include <stdio.h>
+//#include <stdlib.h>
+
+#include "board.h"
+#include "ledrow.h"
+#include "ledcol.h"
 
 /*
  * 
  */
 int main(int argc, char** argv) {
+    board_init();
+    ledrow_init();
+    ledcol_init();
 
-    return (EXIT_SUCCESS);
+    return 0;
 }
 
