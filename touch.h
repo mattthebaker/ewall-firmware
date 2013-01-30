@@ -25,6 +25,9 @@ extern "C" {
 #define TOUCH_SAMPLING_DELAY    19000
 
 #define TOUCH_DETECT_THRESHOLD  100
+#define TOUCH_AVG_DEPTH         32
+
+#define TOUCH_CPU_PRIORITY      1
 
 void touch_init(void);
 void touch_enable(void);

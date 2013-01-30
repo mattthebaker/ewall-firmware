@@ -36,21 +36,27 @@ const touch_channel cmatrix[TOUCH_CHANNEL_COUNT] = {{1, 2, 0, 4},
                                                     {2, 0, 0, 6},
                                                     {2, 0, 3, 6}};
 
-unsigned int * const ports[3] = {&PORTA, &PORTB, &PORTC};
-unsigned int * const tris[3] = {&TRISA, &TRISB, &TRISC};
+volatile unsigned int * const ports[3] = {&PORTA, &PORTB, &PORTC};
+volatile unsigned int * const tris[3] = {&TRISA, &TRISB, &TRISC};
 
 unsigned int enabled = 0;
 unsigned int active_channel = 0;
 
-unsigned int base_stable = 0;
+unsigned int avg_depth = 0;
 unsigned int samples[TOUCH_CHANNEL_COUNT];
 unsigned int basecount[TOUCH_CHANNEL_COUNT];
+unsigned int threshold_count[TOUCH_CHANNEL_COUNT];
+
+unsigned int status_change = 0;
+unsigned long prev_touch = 0;
+unsigned long cur_touch = 0;
 
 void touch_init(void) {
     int i;
 
     TMR1 = 0;                   // configure timer
     PR1 = TOUCH_TIME_CONSTANT;
+    _T1IP = TOUCH_CPU_PRIORITY;                  //
 
     // CTMU configuration
     _CTMUEN = 0;                // disable
@@ -68,10 +74,12 @@ void touch_init(void) {
     _SSRC = 6;                  // CTMU triggers conversion
     _CH0SA = 1;                 // set default input to a grounded touch channel
     _ADON = 0;
+    _AD1IP = TOUCH_CPU_PRIORITY;    // TODO: determine proper interrupt priority, should be low prio
 
     for (i = 0; i < TOUCH_CHANNEL_COUNT; i++) {
         samples[i] = 0;
         basecount[i] = 0;
+        threshold_count[i] = 0;
     }
 }
 
@@ -83,10 +91,13 @@ void touch_enable(void) {
 
     _ADON = 1;
     _AD1IF = 0;
-    _AD1IE = 1;
-    _AD1IP = 1;     // TODO: determine proper interrupt priority, should be low prio
+    _AD1IE = 1;    
 
     enabled = 1;
+
+    status_change = 0;
+    prev_touch = 0;
+    cur_touch = 0;
 }
 
 void touch_next(void) {
@@ -113,6 +124,7 @@ void touch_next(void) {
 
     TMR1 = 0;       // reset timer count
 
+    _IDISSEN = 0;   // disable current ground override
     _EDG1STAT = 0;  // clear CTMU triggers
     _EDG2STAT = 0;
 
@@ -129,11 +141,42 @@ void touch_interval_delay(void) {
 
     _T1IF = 0;
     _T1IE = 1;
+    _T1IP = 1;
     _TON = 1;
 }
 
 void touch_process_samples() {
-    
+    unsigned long thresh_exceeded = 0;
+    int i;
+
+    prev_touch = cur_touch;
+    cur_touch = 0;
+
+    if (avg_depth < TOUCH_AVG_DEPTH) {      // accumulate baseline before detecting touch
+        for (i = 0; i < TOUCH_CHANNEL_COUNT; i++)
+            basecount[i] += samples[i];
+        avg_depth++;
+        return;
+    }
+
+    for (i = 0; i < TOUCH_CHANNEL_COUNT; i++) {
+        if ((samples[i] - (basecount[i] / TOUCH_AVG_DEPTH)) > TOUCH_DETECT_THRESHOLD) {
+            thresh_exceeded++;
+            threshold_count[i]++;
+            if (threshold_count[i] > 2)
+                cur_touch |= 1 << i;
+        }
+        else
+            threshold_count[i] = 0;
+    }
+
+    if (prev_touch != cur_touch)
+        status_change = 1;
+
+    if (!thresh_exceeded)   // if no finger is near, apply current sample to average
+        for (i = 0; i < TOUCH_CHANNEL_COUNT; i++)
+            basecount[i] += samples[i] - (basecount[i] / avg_depth);
+
 }
 
 
@@ -141,12 +184,17 @@ void _ISRFAST _ADC1Interrupt(void) {
     _AD1IF = 0;
 
     _TON = 0;   // TODO: this may need to be shut off in the timer interrupt
+    _IDISSEN = 1;
 
     samples[active_channel] = ADC1BUF0;
 
     if (active_channel == TOUCH_CHANNEL_COUNT - 1) {
-        touch_interval_delay();
         touch_process_samples();
+
+        if (avg_depth == TOUCH_AVG_DEPTH)   // if average is stable, long delay
+            touch_interval_delay();
+        else
+            touch_next();                   // average isn't ready, get more samples
     }
     else {
         touch_next();
