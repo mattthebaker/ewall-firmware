@@ -1,5 +1,7 @@
+#include <xc.h>
 
 #include "ledcol.h"
+#include "touch.h"
 
 /* 
 To set up the SPI module for the Enhanced Buffer Master mode of operation:
@@ -152,4 +154,23 @@ void _ISRFAST _SPI2Interrupt(void) {
 
     LEDCOL_PORT_C1_LAT = 1;       // latch transmitted data
     LEDCOL_PORT_C1_LAT = 0;
+}
+
+// TODO: Probably need to optimize the bitset process
+inline void ledcol_bitset_r(column_data *cdata, unsigned int pos) {
+    unsigned int bitp32 = (pos % 8) * 3;    // position within 32 bits
+    unsigned int wordn = (bitp32 >> 4) + ((pos >> 3) << 1);
+    RMBITW(cdata->data16[wordn], bitp32 % 16, 1);
+}
+
+inline void ledcol_bitset_g(column_data *cdata, unsigned int pos) {
+    unsigned int bitp32 = (pos % 8) * 3 + 1;    // position within 32 bits
+    unsigned int wordn = (bitp32 >> 4) + ((pos >> 3) << 1);
+    RMBITW(cdata->data16[wordn], bitp32 % 16, 1);
+}
+
+inline void ledcol_bitset_b(column_data *cdata, unsigned int pos) {
+    unsigned int bitp32 = (pos % 8) * 3 + 2;    // position within 32 bits
+    unsigned int wordn = (bitp32 >> 4) + ((pos >> 3) << 1);
+    RMBITW(cdata->data16[wordn], bitp32 % 16, 1);
 }

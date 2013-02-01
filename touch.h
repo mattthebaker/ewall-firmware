@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-#define RMBITW(var, pos, val) var = (var & ~(1 << pos)) | ((val % 2) << pos)
+#define RMBITW(var, pos, val) var = (var & ~(1 << (pos))) | ((val % 2) << (pos))
 
 #define TOUCH_CHANNEL_COUNT     22
 

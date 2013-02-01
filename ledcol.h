@@ -27,6 +27,20 @@ extern "C" {
 #define MAX_CURRENT_G ((int)20.0/35*127)
 #define MAX_CURRENT_B ((int)20.0/26.3*127)
 
+typedef union {
+    struct {
+        unsigned :16;
+        unsigned :8;
+        unsigned char datasig;
+        unsigned :16;
+        unsigned :8;
+        unsigned char datasig2;
+    };
+    unsigned char data8[8];
+    unsigned int data16[4];
+    unsigned long data32[2];
+} column_data;
+
 void ledcol_init(void);
 void ledcol_enable(void);
 void ledcol_disable(void);
@@ -34,6 +48,10 @@ void ledcol_setbrightness(unsigned int, unsigned int, unsigned int);
 void ledcol_display(unsigned int [], unsigned int []);
 void ledcol_blank(void);
 void ledcol_unblank(void);
+
+inline void ledcol_bitset_r(column_data *, unsigned int pos);
+inline void ledcol_bitset_g(column_data *, unsigned int pos);
+inline void ledcol_bitset_b(column_data *, unsigned int pos);
 
 #ifdef	__cplusplus
 }
