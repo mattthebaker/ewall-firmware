@@ -45,13 +45,20 @@ void ledcol_init(void);
 void ledcol_enable(void);
 void ledcol_disable(void);
 void ledcol_setbrightness(unsigned int, unsigned int, unsigned int);
-void ledcol_display(unsigned int [], unsigned int []);
+
+void ledcol_display(column_data *);
+void ledcol_clear(void);
+
 void ledcol_blank(void);
 void ledcol_unblank(void);
 
 inline void ledcol_bitset_r(column_data *, unsigned int pos);
 inline void ledcol_bitset_g(column_data *, unsigned int pos);
 inline void ledcol_bitset_b(column_data *, unsigned int pos);
+
+inline void ledcol_bitclr_r(column_data *, unsigned int pos);
+inline void ledcol_bitclr_g(column_data *, unsigned int pos);
+inline void ledcol_bitclr_b(column_data *, unsigned int pos);
 
 #ifdef	__cplusplus
 }

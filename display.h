@@ -14,6 +14,7 @@
 extern "C" {
 #endif
 
+#define CLOCK_FREQUENCY         16000000
 #define DISPLAY_SCAN_FREQ       60
 
 #define DISPLAY_COLOR_DEPTH     32
@@ -26,6 +27,8 @@ extern "C" {
 #define DISPLAY_ROWS            16
 #define DISPLAY_COLS            16
 
+#define MAX(a,b,c) ((a > b)? a: ((b > c)? b : c))
+
 typedef struct {
     unsigned char id;
     unsigned char heartbeat;
@@ -37,6 +40,12 @@ typedef struct {
 } route;
 
 typedef struct {
+    unsigned char enabled;
+    unsigned char maxbrightness;
+    route *holds[DISPLAY_COLS];
+} row;
+
+typedef struct {
     unsigned char row;
     unsigned char repeat;
     column_data cdata;
@@ -46,6 +55,7 @@ void display_init(void);
 void display_enable(void);
 void display_disable(void);
 void display_process(void);
+void display_frequpdate(void);
 
 void display_showroute(route *);
 void display_hideroute(unsigned int);
@@ -56,6 +66,7 @@ void fifo_get(display_data *);
 void fifo_put(display_data *);
 int fifo_full(void);
 int fifo_empty(void);
+void fifo_clear(void);
 
 
 
