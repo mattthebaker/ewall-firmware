@@ -10,6 +10,7 @@
       <itemPath>../touch.h</itemPath>
       <itemPath>../nvm.h</itemPath>
       <itemPath>../display.h</itemPath>
+      <itemPath>../touchmap.h</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
                    displayName="Linker Files"
@@ -25,6 +26,7 @@
       <itemPath>../touch.c</itemPath>
       <itemPath>../nvm.c</itemPath>
       <itemPath>../display.c</itemPath>
+      <itemPath>../touchmap.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"

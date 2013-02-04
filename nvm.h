@@ -20,6 +20,7 @@ extern "C" {
 #define NVM_DATA_SIGNATURE  0x3a9d
 
 void nvm_init(void);
+int nvm_valid(void);
 void nvm_program(unsigned int, unsigned int, unsigned int *);
 const __psv__ unsigned int *nvm_read(unsigned int offset);
 

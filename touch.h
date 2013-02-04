@@ -30,6 +30,7 @@ extern "C" {
 #define TOUCH_CPU_PRIORITY      1
 
 void touch_init(void);
+void touch_setcallbacks(void (*)(unsigned int), void (*)(unsigned int));
 void touch_enable(void);
 void touch_disable(void);
 

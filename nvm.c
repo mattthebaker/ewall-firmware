@@ -5,15 +5,19 @@
 __psv__ __attribute__((space(psv),address(NVM_DATA_PADDR)))
         const unsigned int nvm_data[NVM_DATA_SIZE];
 
-unsigned int nvm_valid = 0;
+unsigned int nvmvalid = 0;
 
 void nvm_init(void) {
     if (nvm_data[NVM_DATA_SIGLOC] == NVM_DATA_SIGNATURE)
-        nvm_valid = 1;
+        nvmvalid = 1;
+}
+
+int nvm_valid(void) {
+    return nvmvalid;
 }
 
 const __psv__ unsigned int *nvm_read(unsigned int offset) {
-    if (nvm_valid)
+    if (nvmvalid)
         return nvm_data + offset;
 
     return (0);
@@ -60,4 +64,7 @@ void nvm_program(unsigned int len, unsigned int offset, unsigned int * data) {
 
     _WREN = 0;
 
+    nvmvalid = 0;
+    if (nvm_data[NVM_DATA_SIGLOC] == NVM_DATA_SIGNATURE)
+        nvmvalid = 1;
 }

@@ -47,6 +47,9 @@ unsigned int samples[TOUCH_CHANNEL_COUNT];
 unsigned int basecount[TOUCH_CHANNEL_COUNT];
 unsigned int threshold_count[TOUCH_CHANNEL_COUNT];
 
+void (*press_cb)(unsigned int);
+void (*release_cb)(unsigned int);
+
 unsigned int status_change = 0;
 unsigned long prev_touch = 0;
 unsigned long cur_touch = 0;
@@ -81,6 +84,11 @@ void touch_init(void) {
         basecount[i] = 0;
         threshold_count[i] = 0;
     }
+}
+
+void touch_setcallbacks(void (*press)(unsigned int), void (*release)(unsigned int)) {
+    press_cb = press;
+    release_cb = release;
 }
 
 void touch_enable(void) {
@@ -146,8 +154,8 @@ void touch_interval_delay(void) {
 }
 
 void touch_process_samples() {
-    unsigned long thresh_exceeded = 0;
-    int i;
+    unsigned int thresh_exceeded = 0;
+    unsigned int i;
 
     prev_touch = cur_touch;
     cur_touch = 0;
@@ -163,11 +171,18 @@ void touch_process_samples() {
         if ((samples[i] - (basecount[i] / TOUCH_AVG_DEPTH)) > TOUCH_DETECT_THRESHOLD) {
             thresh_exceeded++;
             threshold_count[i]++;
-            if (threshold_count[i] > 2)
+            if (threshold_count[i] == 3) {
+                if (press_cb)
+                    press_cb(i);
                 cur_touch |= 1 << i;
+            }
         }
         else
-            threshold_count[i] = 0;
+            if (prev_touch & ~(1 << i)) {
+                if (release_cb)
+                    release_cb(i);
+                threshold_count[i] = 0;
+            }
     }
 
     if (prev_touch != cur_touch)
