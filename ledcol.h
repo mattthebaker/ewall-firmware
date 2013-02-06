@@ -44,7 +44,8 @@ typedef union {
 void ledcol_init(void);
 void ledcol_enable(void);
 void ledcol_disable(void);
-void ledcol_setbrightness(unsigned int, unsigned int, unsigned int);
+void ledcol_setbrightness(unsigned char, unsigned char, unsigned char);
+void ledcol_getbrightness(unsigned char *, unsigned char *, unsigned char *);
 
 void ledcol_display(column_data *);
 void ledcol_clear(void);

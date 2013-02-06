@@ -91,7 +91,7 @@ void ledcol_disable(void) {
  * @param Green Channel Brightness
  * @param Blue Channel Brightness
  */
-void ledcol_setbrightness(unsigned int rb, unsigned int gb, unsigned int bb) {
+void ledcol_setbrightness(unsigned char rb, unsigned char gb, unsigned char bb) {
     unsigned int tdata[2] = {0, 0};
 
     gbright_r = rb;
@@ -111,6 +111,12 @@ void ledcol_setbrightness(unsigned int rb, unsigned int gb, unsigned int bb) {
     SPI2BUF = tdata[1];
     SPI1BUF = tdata[0];
     SPI2BUF = tdata[0];
+}
+
+void ledcol_getbrightness(unsigned char *pr, unsigned char *pg, unsigned char *pb) {
+    *pr = gbright_r;
+    *pg = gbright_g;
+    *pb = gbright_b;
 }
 
 // TODO: Finalize display controller/column driver interface
