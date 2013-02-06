@@ -22,6 +22,9 @@ unsigned long timer_period;
 unsigned int timer_repeat;
 unsigned int timer_activerow;
 
+unsigned int hb_pos;
+unsigned int hb_fullcount;
+
 void display_init(void) {
     fifo_head = 0;
     fifo_count = 0;
@@ -38,6 +41,9 @@ void display_init(void) {
     timer_period = 0;
     timer_repeat = 0;
     timer_activerow = 0;
+
+    hb_pos = 0;
+    hb_fullcount = 0;
 
     T2CONbits.T32 = 1;
     T2CONbits.TCKPS = 0;
@@ -136,31 +142,57 @@ void display_process(void) {
             cbuffer.row = process_activerow;        
             for (i = 0; i < DISPLAY_COLS; i++)      // TODO: consider optimizing
                 if ((phold = prow->holds[i])) {     // enable any hold that needs lighting
-                    if (phold->r) {
-                        ledcol_bitset_r(&cbuffer.cdata, i);
-                        pwmflag[phold->r] = 1;
-                    }
-                    if (phold->g) {
-                        ledcol_bitset_g(&cbuffer.cdata, i);
-                        pwmflag[phold->g] = 1;
-                    }
-                    if (phold->b) {
-                        ledcol_bitset_b(&cbuffer.cdata, i);
-                        pwmflag[phold->b] = 1;
+                    if (phold->heartbeat) {
+                        unsigned int phigh;         // high pulse length
+                        phigh = phold->r * hb_pos / DISPLAY_COLOR_DEPTH;
+                        if (phigh) {
+                            ledcol_bitset_r(&cbuffer.cdata, i);
+                            pwmflag[phigh] = 1;
+                        }
+                        phigh = phold->g * hb_pos / DISPLAY_COLOR_DEPTH;
+                        if (phigh) {
+                            ledcol_bitset_g(&cbuffer.cdata, i);
+                            pwmflag[phigh] = 1;
+                        }
+                        phigh = phold->b * hb_pos / DISPLAY_COLOR_DEPTH;
+                        if (phigh) {
+                            ledcol_bitset_b(&cbuffer.cdata, i);
+                            pwmflag[phigh] = 1;
+                        }
+                    } else {
+                        if (phold->r) {
+                            ledcol_bitset_r(&cbuffer.cdata, i);
+                            pwmflag[phold->r] = 1;
+                        }
+                        if (phold->g) {
+                            ledcol_bitset_g(&cbuffer.cdata, i);
+                            pwmflag[phold->g] = 1;
+                        }
+                        if (phold->b) {
+                            ledcol_bitset_b(&cbuffer.cdata, i);
+                            pwmflag[phold->b] = 1;
+                        }
                     }
                 }
         } else {
             cbuffer.repeat = 0;
             for (i = 0; i < DISPLAY_COLS; i++)
                 if ((phold = prow->holds[i])) {
-                    if (phold->r == process_pwmpos)
-                        ledcol_bitclr_r(&cbuffer.cdata, i);
-
-                    if (phold->g == process_pwmpos)
-                        ledcol_bitclr_g(&cbuffer.cdata, i);
-
-                    if (phold->b == process_pwmpos)
-                        ledcol_bitclr_b(&cbuffer.cdata, i);
+                    if (phold->heartbeat) {
+                        if (phold->r * hb_pos / DISPLAY_COLOR_DEPTH == process_pwmpos)
+                             ledcol_bitclr_r(&cbuffer.cdata, i);
+                        if (phold->g * hb_pos / DISPLAY_COLOR_DEPTH == process_pwmpos)
+                            ledcol_bitclr_g(&cbuffer.cdata, i);
+                        if (phold->b * hb_pos / DISPLAY_COLOR_DEPTH == process_pwmpos)
+                            ledcol_bitclr_b(&cbuffer.cdata, i);
+                    } else {
+                        if (phold->r == process_pwmpos)
+                             ledcol_bitclr_r(&cbuffer.cdata, i);
+                        if (phold->g == process_pwmpos)
+                            ledcol_bitclr_g(&cbuffer.cdata, i);
+                        if (phold->b == process_pwmpos)
+                            ledcol_bitclr_b(&cbuffer.cdata, i);
+                    }
 
                 }            
         }
@@ -177,6 +209,13 @@ void display_process(void) {
         if (process_pwmpos >= DISPLAY_COLOR_DEPTH) {    // end of row
             process_activerow = (process_activerow + 1) % DISPLAY_ROWS;
             process_pwmpos = 0;
+            if (process_activerow == 0) {   // scanned through entire array
+                hb_fullcount = (hb_fullcount + 1) % (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ);
+                if (hb_fullcount >= DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ / 2)
+                    hb_pos = (DISPLAY_COLOR_DEPTH * (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ - hb_fullcount - 1) * 2) / (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ) + 1;
+                else
+                    hb_pos = (DISPLAY_COLOR_DEPTH * hb_fullcount * 2) / (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ) + 1;
+            }
         }
     }
 }

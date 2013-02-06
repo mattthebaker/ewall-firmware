@@ -17,6 +17,8 @@ extern "C" {
 #define CLOCK_FREQUENCY         16000000
 #define DISPLAY_SCAN_FREQ       60
 
+#define DISPLAY_HEARTBEAT_PERIOD    5
+
 #define DISPLAY_COLOR_DEPTH     32
 
 #define DISPLAY_ROUTE_LEN       20
