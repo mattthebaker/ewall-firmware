@@ -68,7 +68,7 @@ void display_disable(void) {
     fifo_clear();
 }
 
-void _ISRFAST _T3Interrupt(void) {
+void __attribute__((interrupt, shadow, auto_psv)) _T3Interrupt(void) {
     _T3IF = 0;
 
     if (!display_enabled) {

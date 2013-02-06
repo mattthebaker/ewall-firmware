@@ -45,11 +45,11 @@ OBJECTDIR=build/${CND_CONF}/${IMAGE_TYPE}
 DISTDIR=dist/${CND_CONF}/${IMAGE_TYPE}
 
 # Object Files Quoted if spaced
-OBJECTFILES_QUOTED_IF_SPACED=${OBJECTDIR}/_ext/1472/main.o ${OBJECTDIR}/_ext/1472/ledcol.o ${OBJECTDIR}/_ext/1472/ledrow.o ${OBJECTDIR}/_ext/1472/board.o ${OBJECTDIR}/_ext/1472/touch.o ${OBJECTDIR}/_ext/1472/nvm.o ${OBJECTDIR}/_ext/1472/display.o ${OBJECTDIR}/_ext/1472/touchmap.o
-POSSIBLE_DEPFILES=${OBJECTDIR}/_ext/1472/main.o.d ${OBJECTDIR}/_ext/1472/ledcol.o.d ${OBJECTDIR}/_ext/1472/ledrow.o.d ${OBJECTDIR}/_ext/1472/board.o.d ${OBJECTDIR}/_ext/1472/touch.o.d ${OBJECTDIR}/_ext/1472/nvm.o.d ${OBJECTDIR}/_ext/1472/display.o.d ${OBJECTDIR}/_ext/1472/touchmap.o.d
+OBJECTFILES_QUOTED_IF_SPACED=${OBJECTDIR}/_ext/1472/main.o ${OBJECTDIR}/_ext/1472/ledcol.o ${OBJECTDIR}/_ext/1472/ledrow.o ${OBJECTDIR}/_ext/1472/board.o ${OBJECTDIR}/_ext/1472/touch.o ${OBJECTDIR}/_ext/1472/nvm.o ${OBJECTDIR}/_ext/1472/display.o ${OBJECTDIR}/_ext/1472/touchmap.o ${OBJECTDIR}/_ext/1241334144/cdc.o ${OBJECTDIR}/_ext/1241334144/usb_stack.o
+POSSIBLE_DEPFILES=${OBJECTDIR}/_ext/1472/main.o.d ${OBJECTDIR}/_ext/1472/ledcol.o.d ${OBJECTDIR}/_ext/1472/ledrow.o.d ${OBJECTDIR}/_ext/1472/board.o.d ${OBJECTDIR}/_ext/1472/touch.o.d ${OBJECTDIR}/_ext/1472/nvm.o.d ${OBJECTDIR}/_ext/1472/display.o.d ${OBJECTDIR}/_ext/1472/touchmap.o.d ${OBJECTDIR}/_ext/1241334144/cdc.o.d ${OBJECTDIR}/_ext/1241334144/usb_stack.o.d
 
 # Object Files
-OBJECTFILES=${OBJECTDIR}/_ext/1472/main.o ${OBJECTDIR}/_ext/1472/ledcol.o ${OBJECTDIR}/_ext/1472/ledrow.o ${OBJECTDIR}/_ext/1472/board.o ${OBJECTDIR}/_ext/1472/touch.o ${OBJECTDIR}/_ext/1472/nvm.o ${OBJECTDIR}/_ext/1472/display.o ${OBJECTDIR}/_ext/1472/touchmap.o
+OBJECTFILES=${OBJECTDIR}/_ext/1472/main.o ${OBJECTDIR}/_ext/1472/ledcol.o ${OBJECTDIR}/_ext/1472/ledrow.o ${OBJECTDIR}/_ext/1472/board.o ${OBJECTDIR}/_ext/1472/touch.o ${OBJECTDIR}/_ext/1472/nvm.o ${OBJECTDIR}/_ext/1472/display.o ${OBJECTDIR}/_ext/1472/touchmap.o ${OBJECTDIR}/_ext/1241334144/cdc.o ${OBJECTDIR}/_ext/1241334144/usb_stack.o
 
 
 CFLAGS=
@@ -121,6 +121,18 @@ ${OBJECTDIR}/_ext/1472/touchmap.o: ../touchmap.c  nbproject/Makefile-${CND_CONF}
 	${MP_CC} $(MP_EXTRA_CC_PRE)  ../touchmap.c  -o ${OBJECTDIR}/_ext/1472/touchmap.o  -c -mcpu=$(MP_PROCESSOR_OPTION)  -MMD -MF "${OBJECTDIR}/_ext/1472/touchmap.o.d"        -g -D__DEBUG -D__MPLAB_DEBUGGER_PK3=1  -omf=elf -O0 -msmart-io=1 -Wall -msfr-warn=off
 	@${FIXDEPS} "${OBJECTDIR}/_ext/1472/touchmap.o.d" $(SILENT)  -rsi ${MP_CC_DIR}../ 
 	
+${OBJECTDIR}/_ext/1241334144/cdc.o: ../dp_usb/cdc.c  nbproject/Makefile-${CND_CONF}.mk
+	@${MKDIR} ${OBJECTDIR}/_ext/1241334144 
+	@${RM} ${OBJECTDIR}/_ext/1241334144/cdc.o.d 
+	${MP_CC} $(MP_EXTRA_CC_PRE)  ../dp_usb/cdc.c  -o ${OBJECTDIR}/_ext/1241334144/cdc.o  -c -mcpu=$(MP_PROCESSOR_OPTION)  -MMD -MF "${OBJECTDIR}/_ext/1241334144/cdc.o.d"        -g -D__DEBUG -D__MPLAB_DEBUGGER_PK3=1  -omf=elf -O0 -msmart-io=1 -Wall -msfr-warn=off
+	@${FIXDEPS} "${OBJECTDIR}/_ext/1241334144/cdc.o.d" $(SILENT)  -rsi ${MP_CC_DIR}../ 
+	
+${OBJECTDIR}/_ext/1241334144/usb_stack.o: ../dp_usb/usb_stack.c  nbproject/Makefile-${CND_CONF}.mk
+	@${MKDIR} ${OBJECTDIR}/_ext/1241334144 
+	@${RM} ${OBJECTDIR}/_ext/1241334144/usb_stack.o.d 
+	${MP_CC} $(MP_EXTRA_CC_PRE)  ../dp_usb/usb_stack.c  -o ${OBJECTDIR}/_ext/1241334144/usb_stack.o  -c -mcpu=$(MP_PROCESSOR_OPTION)  -MMD -MF "${OBJECTDIR}/_ext/1241334144/usb_stack.o.d"        -g -D__DEBUG -D__MPLAB_DEBUGGER_PK3=1  -omf=elf -O0 -msmart-io=1 -Wall -msfr-warn=off
+	@${FIXDEPS} "${OBJECTDIR}/_ext/1241334144/usb_stack.o.d" $(SILENT)  -rsi ${MP_CC_DIR}../ 
+	
 else
 ${OBJECTDIR}/_ext/1472/main.o: ../main.c  nbproject/Makefile-${CND_CONF}.mk
 	@${MKDIR} ${OBJECTDIR}/_ext/1472 
@@ -169,6 +181,18 @@ ${OBJECTDIR}/_ext/1472/touchmap.o: ../touchmap.c  nbproject/Makefile-${CND_CONF}
 	@${RM} ${OBJECTDIR}/_ext/1472/touchmap.o.d 
 	${MP_CC} $(MP_EXTRA_CC_PRE)  ../touchmap.c  -o ${OBJECTDIR}/_ext/1472/touchmap.o  -c -mcpu=$(MP_PROCESSOR_OPTION)  -MMD -MF "${OBJECTDIR}/_ext/1472/touchmap.o.d"        -g -omf=elf -O0 -msmart-io=1 -Wall -msfr-warn=off
 	@${FIXDEPS} "${OBJECTDIR}/_ext/1472/touchmap.o.d" $(SILENT)  -rsi ${MP_CC_DIR}../ 
+	
+${OBJECTDIR}/_ext/1241334144/cdc.o: ../dp_usb/cdc.c  nbproject/Makefile-${CND_CONF}.mk
+	@${MKDIR} ${OBJECTDIR}/_ext/1241334144 
+	@${RM} ${OBJECTDIR}/_ext/1241334144/cdc.o.d 
+	${MP_CC} $(MP_EXTRA_CC_PRE)  ../dp_usb/cdc.c  -o ${OBJECTDIR}/_ext/1241334144/cdc.o  -c -mcpu=$(MP_PROCESSOR_OPTION)  -MMD -MF "${OBJECTDIR}/_ext/1241334144/cdc.o.d"        -g -omf=elf -O0 -msmart-io=1 -Wall -msfr-warn=off
+	@${FIXDEPS} "${OBJECTDIR}/_ext/1241334144/cdc.o.d" $(SILENT)  -rsi ${MP_CC_DIR}../ 
+	
+${OBJECTDIR}/_ext/1241334144/usb_stack.o: ../dp_usb/usb_stack.c  nbproject/Makefile-${CND_CONF}.mk
+	@${MKDIR} ${OBJECTDIR}/_ext/1241334144 
+	@${RM} ${OBJECTDIR}/_ext/1241334144/usb_stack.o.d 
+	${MP_CC} $(MP_EXTRA_CC_PRE)  ../dp_usb/usb_stack.c  -o ${OBJECTDIR}/_ext/1241334144/usb_stack.o  -c -mcpu=$(MP_PROCESSOR_OPTION)  -MMD -MF "${OBJECTDIR}/_ext/1241334144/usb_stack.o.d"        -g -omf=elf -O0 -msmart-io=1 -Wall -msfr-warn=off
+	@${FIXDEPS} "${OBJECTDIR}/_ext/1241334144/usb_stack.o.d" $(SILENT)  -rsi ${MP_CC_DIR}../ 
 	
 endif
 

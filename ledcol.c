@@ -145,7 +145,7 @@ void ledcol_unblank(void) {
  * Once the display string has been transmitted, latch the data and reset the
  * bus to the default state.
  */
-void _ISRFAST _SPI1Interrupt(void) {
+void __attribute__((interrupt, shadow, auto_psv)) _SPI1Interrupt(void) {
     _SPI1IF = 0;    // clear interrupt flag
 
     LEDCOL_PORT_C0_LAT = 1;       // latch transmitted data
@@ -157,7 +157,7 @@ void _ISRFAST _SPI1Interrupt(void) {
  * Once the display string has been transmitted, latch the data and reset the
  * bus to the default state.
  */
-void _ISRFAST _SPI2Interrupt(void) {
+void __attribute__((interrupt, shadow, auto_psv)) _SPI2Interrupt(void) {
     _SPI2IF = 0;    // clear interrupt flag
 
     LEDCOL_PORT_C1_LAT = 1;       // latch transmitted data

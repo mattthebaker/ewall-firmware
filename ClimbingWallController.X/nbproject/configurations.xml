@@ -4,6 +4,12 @@
     <logicalFolder name="HeaderFiles"
                    displayName="Header Files"
                    projectFiles="true">
+      <logicalFolder name="dp_usb" displayName="dp_usb" projectFiles="true">
+        <itemPath>../dp_usb/cdc.h</itemPath>
+        <itemPath>../dp_usb/picusb.h</itemPath>
+        <itemPath>../dp_usb/usb_stack.h</itemPath>
+        <itemPath>../dp_usb/usb_stack_globals.h</itemPath>
+      </logicalFolder>
       <itemPath>../ledcol.h</itemPath>
       <itemPath>../ledrow.h</itemPath>
       <itemPath>../board.h</itemPath>
@@ -11,6 +17,8 @@
       <itemPath>../nvm.h</itemPath>
       <itemPath>../display.h</itemPath>
       <itemPath>../touchmap.h</itemPath>
+      <itemPath>../prj_usb_config.h</itemPath>
+      <itemPath>../descriptors.h</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
                    displayName="Linker Files"
@@ -19,6 +27,10 @@
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
                    projectFiles="true">
+      <logicalFolder name="dp_usb" displayName="dp_usb" projectFiles="true">
+        <itemPath>../dp_usb/cdc.c</itemPath>
+        <itemPath>../dp_usb/usb_stack.c</itemPath>
+      </logicalFolder>
       <itemPath>../main.c</itemPath>
       <itemPath>../ledcol.c</itemPath>
       <itemPath>../ledrow.c</itemPath>
@@ -34,6 +46,9 @@
       <itemPath>Makefile</itemPath>
     </logicalFolder>
   </logicalFolder>
+  <sourceRootList>
+    <Elem>../dp_usb</Elem>
+  </sourceRootList>
   <projectmakefile>Makefile</projectmakefile>
   <confs>
     <conf name="default" type="2">

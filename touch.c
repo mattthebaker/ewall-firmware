@@ -195,7 +195,7 @@ void touch_process_samples() {
 }
 
 
-void _ISRFAST _ADC1Interrupt(void) {
+void __attribute__((interrupt, shadow, auto_psv)) _ADC1Interrupt(void) {
     _AD1IF = 0;
 
     _TON = 0;   // TODO: this may need to be shut off in the timer interrupt
@@ -216,7 +216,7 @@ void _ISRFAST _ADC1Interrupt(void) {
     }
 }
 
-void _ISRFAST _T1Interrupt(void) {
+void __attribute__((interrupt, shadow, auto_psv)) _T1Interrupt(void) {
     _T1IF = 0;
 
     _TON = 0;   // disable timer
