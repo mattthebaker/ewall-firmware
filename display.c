@@ -103,9 +103,9 @@ void __attribute__((interrupt, shadow, auto_psv)) _T3Interrupt(void) {
     if (!fifo_empty()) {    // display next frame
         display_data dd;
 
-        fifo_get(&dd);
-        ledcol_display(&dd.cdata);
-        if (timer_activerow != dd.row) {
+        fifo_get(&dd);      // remove packet from fifo
+        ledcol_display(&dd.cdata);  // send packet to column drivers
+        if (timer_activerow != dd.row) {    // if new row, switch
             ledrow_switch(dd.row);
             timer_activerow = dd.row;
         }
@@ -117,12 +117,14 @@ void __attribute__((interrupt, shadow, auto_psv)) _T3Interrupt(void) {
 
 /** Recalculate optimal display update frequency.
  * Analyzes the total number of frames per cycle, and adjusts the timer to
- * maintain the scan frequency. */
-void display_frequpdate(void) {
+ * maintain the scan frequency.  It is called automatically by showroute and
+ * hideroute.
+ */
+static void display_frequpdate(void) {
     unsigned int pulse_count = 0;
     int i;
 
-    for (i = 0; i < DISPLAY_ROWS; i++)          // count frames per scan
+    for (i = 0; i < DISPLAY_ROWS; i++)          // count frames per cycle
         pulse_count += rows[i].maxbrightness;
     if (!pulse_count)
         pulse_count = 32;
@@ -134,6 +136,12 @@ void display_frequpdate(void) {
     TMR3 = 0;
 }
 
+/** Process the display module.
+ * This generates frames to send to the LED drivers.  It will generate frames
+ * until the FIFO is full.  This module handles software PWM, heartbeat mode,
+ * and row skip optimizations.  It should be called periodically while the
+ * display is active.
+ */
 void display_process(void) {
     static display_data cbuffer;
     static unsigned char pwmflag[DISPLAY_COLOR_DEPTH];
@@ -141,23 +149,23 @@ void display_process(void) {
     route *phold;
     int i;
 
-    while (!fifo_full()) {
+    while (!fifo_full()) {      // generate frames until the buffer is full
         if (!rows[process_activerow].enabled) {     // if row isn't active, skip
             process_activerow++;
             process_activerow %= DISPLAY_ROWS;
             continue;
         }
         
-        prow = &rows[process_activerow];
+        prow = &rows[process_activerow];    // pointer to active row for convenience
 
         if (process_pwmpos == 0) {      // first entry for this row
             memset(&cbuffer, 0, sizeof(display_data));
             memset(&pwmflag, 0, sizeof(pwmflag));
             
             cbuffer.row = process_activerow;        
-            for (i = 0; i < DISPLAY_COLS; i++)      // TODO: consider optimizing
+            for (i = 0; i < DISPLAY_COLS; i++)      // loop through cols in the row
                 if ((phold = prow->holds[i])) {     // enable any hold that needs lighting
-                    if (phold->heartbeat) {
+                    if (phold->heartbeat) {         // heartbeat holds may have reduced active time
                         unsigned int phigh;         // high pulse length
                         phigh = phold->r * hb_pos / DISPLAY_COLOR_DEPTH;
                         if (phigh) {
@@ -174,7 +182,7 @@ void display_process(void) {
                             ledcol_bitset_b(&cbuffer.cdata, i);
                             pwmflag[phigh] = 1;
                         }
-                    } else {
+                    } else {    // turn on all holds that will be active on this row
                         if (phold->r) {
                             ledcol_bitset_r(&cbuffer.cdata, i);
                             pwmflag[phold->r] = 1;
@@ -189,7 +197,7 @@ void display_process(void) {
                         }
                     }
                 }
-        } else {
+        } else {    // not the first cycle in a row, turn off based on pwm value
             cbuffer.repeat = 0;
             for (i = 0; i < DISPLAY_COLS; i++)
                 if ((phold = prow->holds[i])) {
@@ -213,7 +221,7 @@ void display_process(void) {
         }
         process_pwmpos++;   // current position has been processed
 
-        while (!pwmflag[process_pwmpos] && 
+        while (!pwmflag[process_pwmpos] &&          // check if pattern repeats
                 process_pwmpos < prow->maxbrightness) {
             process_pwmpos++;
             cbuffer.repeat++;
