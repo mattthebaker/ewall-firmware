@@ -27,7 +27,7 @@ static unsigned int gbright_b = MAX_CURRENT_B;
  * Initialize the LED Column driver.
  *
  * Configures SPI1 and SPI2 modules for interfacing with the TLC5952 LED
- * Driver chip.
+ * Driver chip.  Sets the default current.
  */
 void ledcol_init(void) {
     // SPI1 Initialization
@@ -92,7 +92,7 @@ void ledcol_disable(void) {
  * @param Blue Channel Brightness
  */
 void ledcol_setbrightness(unsigned char rb, unsigned char gb, unsigned char bb) {
-    unsigned int tdata[2] = {0, 0};
+    column_packet pack;
 
     gbright_r = rb;
     gbright_g = gb;
@@ -103,32 +103,41 @@ void ledcol_setbrightness(unsigned char rb, unsigned char gb, unsigned char bb) 
 //    assert(gbright_b > MAX_CURRENT_B);
 
     // format control packet for transmission
-    tdata[1] = LEDCOL_CMD_CONTROL | gbright_b >> 2;
-    tdata[0] = gbright_b << 14 | gbright_g << 7 | gbright_r;
+    pack.data16[1] = pack.data16[3] = LEDCOL_CMD_CONTROL | gbright_b >> 2;
+    pack.data16[0] = pack.data16[2] = gbright_b << 14 | gbright_g << 7 | gbright_r;
 
     // transmit to high and low column drivers
-    SPI1BUF = tdata[1];
-    SPI2BUF = tdata[1];
-    SPI1BUF = tdata[0];
-    SPI2BUF = tdata[0];
+    ledcol_display(&pack);
 }
 
+/** Get the present LED Brightness.
+ *
+ * Returns the present current drive settings.
+ * @param pr pointer to store R current.
+ * @param pg pointer to store G current.
+ * @param pb pointer to store B current.
+ */
 void ledcol_getbrightness(unsigned char *pr, unsigned char *pg, unsigned char *pb) {
     *pr = gbright_r;
     *pg = gbright_g;
     *pb = gbright_b;
 }
 
-// TODO: Finalize display controller/column driver interface
-void ledcol_display(column_data *cdata) {
+/** Set display with the column packet data.
+ *
+ * Transmits and latches the column packet data in the LED driver.
+ * @param cdata Column data packet.
+ */
+void ledcol_display(column_packet *cdata) {
     SPI1BUF = cdata->data16[1];
     SPI2BUF = cdata->data16[3];
     SPI1BUF = cdata->data16[0];
     SPI2BUF = cdata->data16[2];
 }
 
+/** Clear all channels in the LED driver.*/
 void ledcol_clear(void) {
-    column_data cd;
+    column_packet cd;
 
     memset(&cd, 0, sizeof(cd));     // send null data (all columns off)
     ledcol_display(&cd);
@@ -170,38 +179,61 @@ void __attribute__((interrupt, shadow, auto_psv)) _SPI2Interrupt(void) {
     LEDCOL_PORT_C1_LAT = 0;
 }
 
-// TODO: Probably need to optimize the bitset process
-inline void ledcol_bitset_r(column_data *cdata, unsigned int pos) {
+/** Fast bit enable function for R bits in column_packet's.
+ * @param cdata column_packet to modify.
+ * @param pos bit number to modify.
+ */
+inline void ledcol_bitset_r(column_packet *cdata, unsigned int pos) {
     unsigned int bitp32 = (pos % 8) * 3;    // position within 32 bits
     unsigned int wordn = (bitp32 >> 4) + ((pos >> 3) << 1);
     cdata->data16[wordn] |= (1 << (bitp32 % 16));
 }
 
-inline void ledcol_bitset_g(column_data *cdata, unsigned int pos) {
+/** Fast bit enable function for G bits in column_packet's.
+ * @param cdata column_packet to modify.
+ * @param pos bit number to modify.
+ */
+inline void ledcol_bitset_g(column_packet *cdata, unsigned int pos) {
     unsigned int bitp32 = (pos % 8) * 3 + 1;    // position within 32 bits
     unsigned int wordn = (bitp32 >> 4) + ((pos >> 3) << 1);
     cdata->data16[wordn] |= (1 << (bitp32 % 16));
 }
 
-inline void ledcol_bitset_b(column_data *cdata, unsigned int pos) {
+/** Fast bit enable function for B bits in column_packet's.
+ * @param cdata column_packet to modify.
+ * @param pos bit number to modify.
+ */
+inline void ledcol_bitset_b(column_packet *cdata, unsigned int pos) {
     unsigned int bitp32 = (pos % 8) * 3 + 2;    // position within 32 bits
     unsigned int wordn = (bitp32 >> 4) + ((pos >> 3) << 1);
     cdata->data16[wordn] |= (1 << (bitp32 % 16));
 }
 
-inline void ledcol_bitclr_r(column_data *cdata, unsigned int pos) {
+/** Fast bit clear function for R bits in column_packet's.
+ * @param cdata column_packet to modify.
+ * @param pos bit number to modify.
+ */
+inline void ledcol_bitclr_r(column_packet *cdata, unsigned int pos) {
     unsigned int bitp32 = (pos % 8) * 3;    // position within 32 bits
     unsigned int wordn = (bitp32 >> 4) + ((pos >> 3) << 1);
     cdata->data16[wordn] &= ~(1 << (bitp32 % 16));
 }
 
-inline void ledcol_bitclr_g(column_data *cdata, unsigned int pos) {
+/** Fast bit clear function for G bits in column_packet's.
+ * @param cdata column_packet to modify.
+ * @param pos bit number to modify.
+ */
+inline void ledcol_bitclr_g(column_packet *cdata, unsigned int pos) {
     unsigned int bitp32 = (pos % 8) * 3 + 1;    // position within 32 bits
     unsigned int wordn = (bitp32 >> 4) + ((pos >> 3) << 1);
     cdata->data16[wordn] &= ~(1 << (bitp32 % 16));
 }
 
-inline void ledcol_bitclr_b(column_data *cdata, unsigned int pos) {
+/** Fast bit clear function for B bits in column_packet's.
+ * @param cdata column_packet to modify.
+ * @param pos bit number to modify.
+ */
+inline void ledcol_bitclr_b(column_packet *cdata, unsigned int pos) {
     unsigned int bitp32 = (pos % 8) * 3 + 2;    // position within 32 bits
     unsigned int wordn = (bitp32 >> 4) + ((pos >> 3) << 1);
     cdata->data16[wordn] &= ~(1 << (bitp32 % 16));

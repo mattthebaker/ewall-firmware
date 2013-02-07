@@ -14,12 +14,12 @@
 extern "C" {
 #endif
 
-#define LEDROW_PORT_RAEN    _RA10
-#define LEDROW_PORT_RBEN    _RA4
+#define LEDROW_PORT_RAEN    _RA10   /**< uC port for RAEN.*/
+#define LEDROW_PORT_RBEN    _RA4    /**< uC port for RBEN.*/
     
-#define LEDROW_PORT         LATA
-#define LEDROW_PORT_MASK    0x380
-#define LEDROW_PORT_OFFSET  7
+#define LEDROW_ADDR_PORT    LATA    /**< uC port for Row address.*/
+#define LEDROW_ADDR_MASK    0x380   /**< Row address mask.*/
+#define LEDROW_ADDR_OFFSET  7       /**< Row address offset.*/
 
 void ledrow_init(void);
 void ledrow_switch(unsigned int);

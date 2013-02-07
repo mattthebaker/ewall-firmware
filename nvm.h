@@ -12,12 +12,12 @@
 extern "C" {
 #endif
 
-#define NVM_ROW_SIZE        64
-#define NVM_DATA_SIZE       512
-#define NVM_DATA_PADDR      0xa400
+#define NVM_ROW_SIZE        64      /**< Size of flash programming row in double bytes.*/
+#define NVM_DATA_SIZE       512     /**< Total size of NVM section in double bytes.*/
+#define NVM_DATA_PADDR      0xa400  /**< Address of NVM data in the program address space.*/
 
-#define NVM_DATA_SIGLOC     511
-#define NVM_DATA_SIGNATURE  0x3a9d
+#define NVM_DATA_SIGLOC     511     /**< Location of validity signature in NVM block.*/
+#define NVM_DATA_SIGNATURE  0x3a9d  /**< Data signature value.*/
 
 void nvm_init(void);
 int nvm_valid(void);

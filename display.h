@@ -50,7 +50,7 @@ typedef struct {
 typedef struct {
     unsigned char row;
     unsigned char repeat;
-    column_data cdata;
+    column_packet cdata;
 } display_data;
 
 void display_init(void);

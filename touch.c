@@ -1,8 +1,9 @@
 #include <xc.h>
+#include <stddef.h>
 
 #include "touch.h"
 
-/** Struct that represents a touch channel. */
+/** Struct that holds touch channel information. */
 typedef struct {
     unsigned port:2;
     unsigned pindex:4;
@@ -10,56 +11,63 @@ typedef struct {
     unsigned aindex:4;
 } touch_channel;
 
-enum cmat {CMAT_PORT, CMAT_POS, CMAT_AMUX, CMAT_AN};
+static void filter_reset(void);
+static void touch_next(void);
+static void touch_interval_delay(void);
+static void touch_process_samples(void);
 
 /** Const array that contains touch channel->peripheral mapping information. */
-const touch_channel cmatrix[TOUCH_CHANNEL_COUNT] = {{1, 2, 0, 4},
-                                                    {0, 1, 0, 1},
-                                                    {1, 15, 0, 9},
-                                                    {1, 14, 2, 10},
-                                                    {1, 14, 0, 10},
-                                                    {1, 14, 3, 10},
-                                                    {1, 14, 1, 10},
-                                                    {1, 13, 2, 11},
-                                                    {1, 13, 1, 11},
-                                                    {1, 13, 0, 11},
-                                                    {1, 13, 3, 11},
-                                                    {2, 3, 0, 12},
-                                                    {2, 2, 0, 8},
-                                                    {2, 1, 0, 9},
-                                                    {1, 3, 2, 5},
-                                                    {1, 3, 0, 5},
-                                                    {1, 3, 3, 5},
-                                                    {1, 3, 1, 5},
-                                                    {2, 0, 2, 6},
-                                                    {2, 0, 1, 6},
-                                                    {2, 0, 0, 6},
-                                                    {2, 0, 3, 6}};
+static const touch_channel cmatrix[TOUCH_CHANNEL_COUNT] =   {{1, 2, 0, 4},
+                                                            {0, 1, 0, 1},
+                                                            {1, 15, 0, 9},
+                                                            {1, 14, 2, 10},
+                                                            {1, 14, 0, 10},
+                                                            {1, 14, 3, 10},
+                                                            {1, 14, 1, 10},
+                                                            {1, 13, 2, 11},
+                                                            {1, 13, 1, 11},
+                                                            {1, 13, 0, 11},
+                                                            {1, 13, 3, 11},
+                                                            {2, 3, 0, 12},
+                                                            {2, 2, 0, 8},
+                                                            {2, 1, 0, 9},
+                                                            {1, 3, 2, 5},
+                                                            {1, 3, 0, 5},
+                                                            {1, 3, 3, 5},
+                                                            {1, 3, 1, 5},
+                                                            {2, 0, 2, 6},
+                                                            {2, 0, 1, 6},
+                                                            {2, 0, 0, 6},
+                                                            {2, 0, 3, 6}};
 
-volatile unsigned int * const ports[3] = {&PORTA, &PORTB, &PORTC};
-volatile unsigned int * const tris[3] = {&TRISA, &TRISB, &TRISC};
+/** Array that maps a PORT index to the register. */
+static volatile unsigned int * const ports[3] = {&PORTA, &PORTB, &PORTC};
 
-unsigned int enabled = 0;
-unsigned int active_channel = 0;
+/** Array that maps a TRIS index to the register. */
+static volatile unsigned int * const tris[3] = {&TRISA, &TRISB, &TRISC};
 
-unsigned int avg_depth = 0;
-unsigned int samples[TOUCH_CHANNEL_COUNT];
-unsigned int basecount[TOUCH_CHANNEL_COUNT];
-unsigned int threshold_count[TOUCH_CHANNEL_COUNT];
+static unsigned int enabled = 0;        /**< Touch enabled flag. */
+static unsigned int shutting_down = 0;  /**< Shutdown process flag. */
+static unsigned int active_channel = 0; /**< Active touch channel. */
+static unsigned int long_delay = 0;     /**< Long delay flag. */
 
-void (*press_cb)(unsigned int);
-void (*release_cb)(unsigned int);
+static unsigned int avg_depth;      /**< Depth of accumulated average. */
+static unsigned int samples[TOUCH_CHANNEL_COUNT];   /**< Most recent samples. */
+static unsigned int basecount[TOUCH_CHANNEL_COUNT]; /**< Base capacitance count. */
+static unsigned int threshold_count[TOUCH_CHANNEL_COUNT];   /**< Count of consecutive threshold triggers. */
 
-unsigned int status_change = 0;
-unsigned long prev_touch = 0;
-unsigned long cur_touch = 0;
+static void (*press_cb)(unsigned int);  /**< Press event callback pointer. */
+static void (*release_cb)(unsigned int);    /**< Release event callback pointer. */
 
+/** Initialize touch sensing.
+ * Configure Timer1, and the ADC for touch sensing.
+ */
 void touch_init(void) {
-    int i;
-
     TMR1 = 0;                   // configure timer
     PR1 = TOUCH_TIME_CONSTANT;
-    _T1IP = TOUCH_CPU_PRIORITY;                  //
+    _TCKPS = TOUCH_TIME_PRESCALER;
+    _T1IP = TOUCH_TIMER_PRIORITY;
+    _T1IE = 1;
 
     // CTMU configuration
     _CTMUEN = 0;                // disable
@@ -77,46 +85,90 @@ void touch_init(void) {
     _SSRC = 6;                  // CTMU triggers conversion
     _CH0SA = 1;                 // set default input to a grounded touch channel
     _ADON = 0;
-    _AD1IP = TOUCH_CPU_PRIORITY;    // TODO: determine proper interrupt priority, should be low prio
+    _AD1IP = TOUCH_ADC_PRIORITY;    // TODO: determine proper interrupt priority, should be low prio
 
-    for (i = 0; i < TOUCH_CHANNEL_COUNT; i++) {
-        samples[i] = 0;
-        basecount[i] = 0;
-        threshold_count[i] = 0;
-    }
+    press_cb = NULL;
+    release_cb = NULL;
 }
 
+/** Register touch event callbacks.
+ *
+ * Callbacks should execute quickly, as they are called from interrupts.
+ * @param press Press event callback.
+ * @param release Release event callback.
+ */
 void touch_setcallbacks(void (*press)(unsigned int), void (*release)(unsigned int)) {
     press_cb = press;
     release_cb = release;
 }
 
+/** Enable touch sensing.
+ * Configures device for touch sensing, and starts the sense on the first
+ * channel.  Every time the touch module is disabled and re-enabled, it must
+ * reaquire the baseline average. Avoid disabling the module unless it will
+ * be unused for a long period of time.
+ */
 void touch_enable(void) {
-    _CTMUEN = 1;
+    if (enabled)        // allow this function to be called multiple times.
+        return;
+
+    __builtin_disi(0x3fff);     // interrupt shutdown if re-enabled
+    if (shutting_down) {
+        enabled = 1;
+        shutting_down = 0;
+        __builtin_disi(0);
+        return;
+    }
+    __builtin_disi(0);
+
+    _CTMUEN = 1;                // enable CTMU
     _EDG2STAT = 0;              // clear edge status
     _EDG1STAT = 0;
-    _EDGEN = 1;                 // enabled edge inputs
+    _EDGEN = 1;                 // enable edge inputs
 
-    _ADON = 1;
+    _ADON = 1;                  // enable ADC
     _AD1IF = 0;
-    _AD1IE = 1;    
+    _AD1IE = 1;                 // enable interrupts
+
+    filter_reset();
 
     enabled = 1;
-
-    status_change = 0;
-    prev_touch = 0;
-    cur_touch = 0;
+    active_channel = TOUCH_CHANNEL_COUNT - 1;
+    
+    touch_next();
 }
 
-void touch_next(void) {
-    unsigned int cpu_priority;
+/** Disable touch sensing.
+ */
+void touch_disable(void) {
+    if (!enabled)
+        return;
+    
+    __builtin_disi(0x3fff);
+    if (long_delay) {   // in long delay, immediately disable
+        _TON = 0;
+        _T1IF = 0;
+        TMR1 = 0;                      // reset time period for touch
+        PR1 = TOUCH_TIME_CONSTANT;
+        _TCKPS = TOUCH_TIME_PRESCALER; // reset prescaler
+        long_delay = 0;
+    } else {
+        shutting_down = 1;  // sense is taking place, trigger shutdown
+    }
+    enabled = 0;
+    __builtin_disi(0);
+}
+
+/** Start the sense on the next touch channel.
+ * Configures the next channel, and starts a sense.
+ */
+static void touch_next(void) {
     touch_channel prev_chan;
     touch_channel cur_chan;
 
     prev_chan = cmatrix[active_channel];
 
-    if (++active_channel >= TOUCH_CHANNEL_COUNT)
-        active_channel = 0;
+    active_channel = (active_channel + 1) % TOUCH_CHANNEL_COUNT;
 
     cur_chan = cmatrix[active_channel];
 
@@ -132,33 +184,39 @@ void touch_next(void) {
 
     TMR1 = 0;       // reset timer count
 
-    _IDISSEN = 0;   // disable current ground override
+    _IDISSEN = 0;   // disable current source override grounder
     _EDG1STAT = 0;  // clear CTMU triggers
     _EDG2STAT = 0;
 
-    SET_AND_SAVE_CPU_IPL(cpu_priority, 7);  // disable interrupts for critical timing
-    _EDG1STAT = 1;  // enable current source
-    _TON = 1;       // enable timer
-    RESTORE_CPU_IPL(cpu_priority);          // re-enable interrupts
+    __builtin_disi(0x3fff); // disable interrupts for critical timing
+    _EDG1STAT = 1;          // enable current source
+    _TON = 1;               // enable timer
+    __builtin_disi(0);      // re-enable interrupts
 }
 
-void touch_interval_delay(void) {
+/** Long delay function to spread sampling over time.
+ * The delay is implemented by reconfiguring Timer1, and then waiting for
+ * an interrupt.
+ */
+static void touch_interval_delay(void) {
     TMR1 = 0;
-    _TCKPS = 1;     // 8:1 prescaler
+    _TCKPS = TOUCH_DELAY_PRESCALER;     // 8:1 prescaler
     PR1 = TOUCH_SAMPLING_DELAY;
 
+    long_delay = 1;
     _T1IF = 0;
     _T1IE = 1;
-    _T1IP = 1;
     _TON = 1;
 }
 
-void touch_process_samples() {
+/** Process a batch of touch samples.
+ * This function handles touch detection, calls callbacks, and maintains the
+ * base level average.  It should be called each time a batch of samples has
+ * been taken.
+ */
+static void touch_process_samples(void) {
     unsigned int thresh_exceeded = 0;
     unsigned int i;
-
-    prev_touch = cur_touch;
-    cur_touch = 0;
 
     if (avg_depth < TOUCH_AVG_DEPTH) {      // accumulate baseline before detecting touch
         for (i = 0; i < TOUCH_CHANNEL_COUNT; i++)
@@ -167,26 +225,22 @@ void touch_process_samples() {
         return;
     }
 
-    for (i = 0; i < TOUCH_CHANNEL_COUNT; i++) {
+    for (i = 0; i < TOUCH_CHANNEL_COUNT; i++) {     // touch detection
         if ((samples[i] - (basecount[i] / TOUCH_AVG_DEPTH)) > TOUCH_DETECT_THRESHOLD) {
             thresh_exceeded++;
             threshold_count[i]++;
-            if (threshold_count[i] == 3) {
-                if (press_cb)
+            if (threshold_count[i] == 3) {  // soft debounc
+                if (press_cb)               // if touched, callback
                     press_cb(i);
-                cur_touch |= 1 << i;
             }
         }
         else
-            if (prev_touch & ~(1 << i)) {
+            if (threshold_count[i] > 3) {   // if released, callback
                 if (release_cb)
                     release_cb(i);
                 threshold_count[i] = 0;
             }
     }
-
-    if (prev_touch != cur_touch)
-        status_change = 1;
 
     if (!thresh_exceeded)   // if no finger is near, apply current sample to average
         for (i = 0; i < TOUCH_CHANNEL_COUNT; i++)
@@ -194,7 +248,26 @@ void touch_process_samples() {
 
 }
 
+/** Reset touch filter.
+ */
+static void filter_reset(void) {
+    int i;
+    
+    avg_depth = 0;
+    for (i = 0; i < TOUCH_CHANNEL_COUNT; i++) {
+        samples[i] = 0;
+        basecount[i] = 0;
+        threshold_count[i] = 0;
+    }
+}
 
+/** ADC Interrupt Service Routine.
+ * Handles the completion of a touch sense.  The ADC is automatically triggered
+ * by the CTMU after the current pulse.  This handler stores the result in the
+ * sample buffer.  After every channel has been sampled, it will call the
+ * processing handler.  If we have a stable baseline, it will trigger a long
+ * delay, otherwise it will start the next sample.
+ */
 void __attribute__((interrupt, shadow, auto_psv)) _ADC1Interrupt(void) {
     _AD1IF = 0;
 
@@ -203,28 +276,40 @@ void __attribute__((interrupt, shadow, auto_psv)) _ADC1Interrupt(void) {
 
     samples[active_channel] = ADC1BUF0;
 
-    if (active_channel == TOUCH_CHANNEL_COUNT - 1) {
-        touch_process_samples();
+    if (shutting_down) {    // shutdown (break interrupt loop)
+        shutting_down = 0;
+        return;
+    }
 
+    if (active_channel == TOUCH_CHANNEL_COUNT - 1) {    // sampled every channel
+        touch_process_samples();
+            
         if (avg_depth == TOUCH_AVG_DEPTH)   // if average is stable, long delay
             touch_interval_delay();
         else
             touch_next();                   // average isn't ready, get more samples
+        
     }
     else {
         touch_next();
     }
 }
 
+/** Timer1 Interrupt Service Routine.
+ * Handles the end of the long sampling delay.  It shuts off the timer,
+ * and reconfigures it for generating the touch current pulse.
+ */
 void __attribute__((interrupt, shadow, auto_psv)) _T1Interrupt(void) {
     _T1IF = 0;
-
     _TON = 0;   // disable timer
-    _T1IE = 0;  // diable interrupt
 
+    if (!long_delay)
+        return;
+
+    long_delay = 0;
     TMR1 = 0;   // reset time period for touch
     PR1 = TOUCH_TIME_CONSTANT;
-    _TCKPS = 0;
+    _TCKPS = TOUCH_TIME_PRESCALER; // reset prescaler
 
     touch_next();   // restart sample process
 }

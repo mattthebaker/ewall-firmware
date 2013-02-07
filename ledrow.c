@@ -1,27 +1,28 @@
 #include "ledrow.h"
 
-static unsigned int selected_row = 0;
+static unsigned int selected_row;   /**< The currently selected row. */
 
-/** Initialize Row Driver.
+/** Initialize Row Drive Module.
  */
 void ledrow_init(void) {
+    selected_row = 0;
     ledrow_disable();
 }
 
 /** Switch to a different row.
  *
  * Selects a new row, and enables it.
- * @param The row number to enable.
+ * @param row The row number to enable.
  */
 void ledrow_switch(unsigned int row) {
-    selected_row = row;
+    selected_row = row; // set selected row
 
     ledrow_disable();   // disable active row, to avoid glitches during address
                         // transition
 
     // update the row address output
-    LEDROW_PORT = (LEDROW_PORT & ~LEDROW_PORT_MASK) |
-                  ((row << LEDROW_PORT_OFFSET) & LEDROW_PORT_MASK);
+    LEDROW_ADDR_PORT = (LEDROW_ADDR_PORT & ~LEDROW_ADDR_MASK) |
+                  ((row << LEDROW_ADDR_OFFSET) & LEDROW_ADDR_MASK);
 
     ledrow_enable();    // enable the active row
 }
@@ -31,7 +32,7 @@ void ledrow_switch(unsigned int row) {
  * The previously enabled row will be turned on.
  */
 inline void ledrow_enable(void) {
-    if (selected_row / 8)            // enable active row
+    if (selected_row / 8)            // enable selected row
         LEDROW_PORT_RBEN = 1;
     else
         LEDROW_PORT_RAEN = 1;
@@ -40,6 +41,6 @@ inline void ledrow_enable(void) {
 /** Disable Row Drive.
  */
 inline void ledrow_disable(void) {
-    LEDROW_PORT_RAEN = 0;   // disable active row
+    LEDROW_PORT_RAEN = 0;   // disable active rows
     LEDROW_PORT_RBEN = 0;
 }

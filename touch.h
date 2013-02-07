@@ -12,22 +12,26 @@
 extern "C" {
 #endif
 
+/** Macro for bit manipulation. Read-ModBit-Write. */
 #define RMBITW(var, pos, val) var = (var & ~(1 << (pos))) | ((val % 2) << (pos))
 
-#define TOUCH_CHANNEL_COUNT     22
+#define TOUCH_CHANNEL_COUNT     22      /**< Number of Touch Channels. */
 
-#define TOUCH_AMUX_AMSEL0       _RB8
-#define TOUCH_AMUX_AMSEL1       _RB9
+#define TOUCH_AMUX_AMSEL0       _RB8    /**< uC port for AMSEL0. */
+#define TOUCH_AMUX_AMSEL1       _RB9    /**< uC port for AMSEL1. */
 
-/** 20us: 320 counts @ 16Mhz FCY */
+/** Touch current pulse duration.  20us -- 320 counts @ 16Mhz FCY */
 #define TOUCH_TIME_CONSTANT     320
+#define TOUCH_TIME_PRESCALER    0       /**< Current pulse prescaler. 1:1. */
 
-#define TOUCH_SAMPLING_DELAY    19000
+#define TOUCH_SAMPLING_DELAY    19000   /**< Long delay between samples. */
+#define TOUCH_DELAY_PRESCALER   1       /**< Long delay prescaler. 8:1. */
 
-#define TOUCH_DETECT_THRESHOLD  100
-#define TOUCH_AVG_DEPTH         32
+#define TOUCH_DETECT_THRESHOLD  100     /**< Touch detection threshold. */
+#define TOUCH_AVG_DEPTH         32      /**< Depth of baseline value average. */
 
-#define TOUCH_CPU_PRIORITY      1
+#define TOUCH_ADC_PRIORITY      1       /**< ADC interrupt priority. */
+#define TOUCH_TIMER_PRIORITY    5       /**< Timer1 interrupt priority. */
 
 void touch_init(void);
 void touch_setcallbacks(void (*)(unsigned int), void (*)(unsigned int));
