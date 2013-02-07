@@ -12,11 +12,12 @@
 extern "C" {
 #endif
 
-#define TOUCHMAP_MAX_HOLDS_PER_CHANNEL      15
+#define TOUCHMAP_MAX_HOLDS_PER_CHANNEL      15  /**< Max holds per touch channel. */
 
-#define TOUCHMAP_TIME_CONSTANT              62500
-#define TOUCHMAP_TIMER_PRESCALER            3
+#define TOUCHMAP_TIME_CONSTANT              62500   /**< Delay between hold illumination. */
+#define TOUCHMAP_TIMER_PRESCALER            3       /**< Delay prescaler. */
 
+/** Struct that represents all holds on a touch channel. */
 typedef struct {
     unsigned char count;
     unsigned char holds[TOUCHMAP_MAX_HOLDS_PER_CHANNEL];

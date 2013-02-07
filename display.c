@@ -5,26 +5,30 @@
 #include "ledcol.h"
 #include "ledrow.h"
 
-unsigned int display_enabled;
+static void display_frequpdate(void);
 
-display_data fifo_data[DISPLAY_FIFO_LEN];
-unsigned int fifo_head;
-unsigned int fifo_count;
-unsigned int fifo_misses;
+static unsigned int display_enabled;    /**< Display enabled flag. */
 
-route routes[DISPLAY_MAX_ROUTES];
-row rows[DISPLAY_ROWS];
+static display_data fifo_data[DISPLAY_FIFO_LEN];    /**< FIFO Data buffer. */
+static unsigned int fifo_head;      /**< FIFO head pointer. */
+static unsigned int fifo_count;     /**< FIFO entry count. */
+static unsigned int fifo_misses;    /**< FIFO underrun count. */
 
-unsigned int process_activerow;
-unsigned int process_pwmpos;
+static route routes[DISPLAY_MAX_ROUTES];    /**< Routes active on the display. */
+static row rows[DISPLAY_ROWS];              /**< Row data for the display. */
 
-unsigned long timer_period;
-unsigned int timer_repeat;
-unsigned int timer_activerow;
+static unsigned int process_activerow;  /**< Active row in output data generator. */
+static unsigned int process_pwmpos;     /**< PWM pulse position. */
 
-unsigned int hb_pos;
-unsigned int hb_fullcount;
+static unsigned long timer_period;      /**< Display tick period. */
+static unsigned int timer_repeat;       /**< Pattern repeat counter. */
+static unsigned int timer_activerow;    /**< Active output row. */
 
+static unsigned int hb_pos;             /**< Heartbeat intensity level. */
+static unsigned int hb_fullcount;       /**< Heartbeat counter, used for intensity calculation. */
+
+/** Initialize display module.
+ */
 void display_init(void) {
     fifo_head = 0;
     fifo_count = 0;
@@ -52,6 +56,9 @@ void display_init(void) {
     
 }
 
+/** Enable display output.
+ * Start output display timer.  Fill display package FIFO.
+ */
 void display_enable(void) {
     display_enabled = 1;
     timer_repeat = 0;
@@ -68,18 +75,23 @@ void display_enable(void) {
         _T3IF = 1;
 }
 
+/** Disable display output.
+ */
 void display_disable(void) {
     display_enabled = 0;
 
     fifo_clear();
 }
 
+/** Timer3 Interrupt Service Routine.
+ * Update the display frame.
+ */
 void __attribute__((interrupt, shadow, auto_psv)) _T3Interrupt(void) {
     _T3IF = 0;
 
-    if (!display_enabled) {
-        ledrow_disable();
-        ledcol_clear();
+    if (!display_enabled) { // if disabled, clear the display, stop timer
+        ledrow_disable();   // cut row driver
+        ledcol_clear();     // cut column drive
         T2CONbits.TON = 0;
         _T3IE = 0;
         return;
@@ -88,7 +100,7 @@ void __attribute__((interrupt, shadow, auto_psv)) _T3Interrupt(void) {
     if (timer_repeat--)     // display same column data
         return;
 
-    if (!fifo_empty()) {
+    if (!fifo_empty()) {    // display next frame
         display_data dd;
 
         fifo_get(&dd);
@@ -103,11 +115,14 @@ void __attribute__((interrupt, shadow, auto_psv)) _T3Interrupt(void) {
     }
 }
 
+/** Recalculate optimal display update frequency.
+ * Analyzes the total number of frames per cycle, and adjusts the timer to
+ * maintain the scan frequency. */
 void display_frequpdate(void) {
     unsigned int pulse_count = 0;
     int i;
 
-    for (i = 0; i < DISPLAY_ROWS; i++)
+    for (i = 0; i < DISPLAY_ROWS; i++)          // count frames per scan
         pulse_count += rows[i].maxbrightness;
     if (!pulse_count)
         pulse_count = 32;
@@ -286,6 +301,8 @@ void display_hideroute(unsigned int id) {
     display_frequpdate();
 }
 
+/** Get entry from the FIFO.
+ */
 void fifo_get(display_data *data) {
     __builtin_disi(0x3FFF);
     *data = fifo_data[fifo_head++];
@@ -294,6 +311,8 @@ void fifo_get(display_data *data) {
     __builtin_disi(0);
 }
 
+/** Put entry into the FIFO.
+ */
 void fifo_put(display_data *data) {
     __builtin_disi(0x3FFF);
     fifo_data[(fifo_head + fifo_count) % DISPLAY_FIFO_LEN] = *data;
@@ -301,14 +320,17 @@ void fifo_put(display_data *data) {
     __builtin_disi(0);
 }
 
+/** Clear the FIFO. */
 void fifo_clear(void) {
     fifo_count = 0;         // atomic write
 }
 
+/** Check if FIFO is full. */
 inline int fifo_full(void) {
     return (fifo_count == DISPLAY_FIFO_LEN);
 }
 
+/** Check if FIFO is empty. */
 inline int fifo_empty(void) {
     return (fifo_count == 0);
 }
