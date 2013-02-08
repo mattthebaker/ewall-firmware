@@ -41,24 +41,29 @@
 #define CMD_BUFFER_SIZE         120
 #define TOUCHTX_BUFFER_SIZE     45
 
+extern unsigned char usb_device_state;
 
+static unsigned int atoi(char *);
+static unsigned int atoi_next(char *, unsigned char *);
+static void putuchar_cdc(unsigned char, unsigned char);
+static void command_process(void);
+static void rawtouch_cb(unsigned int);
+static void rawrelease_cb(unsigned int);
+static void gethold_cb(unsigned int);
+static void rawtouch_send(unsigned char, unsigned int);
 
 void USBSuspend(void);
 
-extern unsigned char usb_device_state;
+static unsigned char cmd_bufferfree = 1;    /**< Buffer ready flag. */
+static unsigned char cmd_bufferindex = 0;   /**< Present position in buffer. */
+static unsigned char cmd_processflag = 0;   /**< Flag that a command is ready for processing. */
+static char cmd_buffer[CMD_BUFFER_SIZE];    /**< Command buffer. */
 
-void command_process(void);
+static unsigned char touchtx_count = 0;     /**< Bytes in tx buffer. */
+static char touchtx_buffer[TOUCHTX_BUFFER_SIZE];    /**< Transmit buffer. */
+static unsigned int touchtx_miss = 0;   /**< Events missed due to full buffer. */
 
-unsigned char cmd_bufferfree = 1;
-unsigned char cmd_bufferindex = 0;
-unsigned char cmd_processflag = 0;
-char cmd_buffer[CMD_BUFFER_SIZE];
-
-unsigned char touchtx_count = 0;
-char touchtx_buffer[TOUCHTX_BUFFER_SIZE];
-unsigned int touchtx_miss = 0;
-
-/*
+/** Main function. 
  * 
  */
 int main(int argc, char** argv) {
@@ -72,16 +77,12 @@ int main(int argc, char** argv) {
     nvm_init();
     touchmap_init();
 
-
-
-    initCDC(); // JTR this function has been highly modified It no longer sets up CDC endpoints.
+    initCDC();
     usb_init(cdc_device_descriptor, cdc_config_descriptor, cdc_str_descs, USB_NUM_STRINGS);
     usb_start();
 
-#if defined USB_INTERRUPTS
     EnableUsbPerifInterrupts(USB_TRN + USB_SOF + USB_UERR + USB_URST);
     EnableUsbGlobalInterrupt();
-#endif
 
     while (usb_device_state < CONFIGURED_STATE);
 
@@ -112,7 +113,6 @@ int main(int argc, char** argv) {
             CDC_Flush_In_Now();
         }
 
-        // The CDC module will call usb_handler each time a BULK CDC packet is sent or received.
         if (cmd_bufferfree)
             while (poll_getc_cdc(&RecvdByte)) { // Same as poll_getc_cdc except that byte is NOT removed from queue.
                 if (RecvdByte == '\n') {
@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
                     cmd_processflag = 1;
                 }
                 else
-                    cmd_buffer[cmd_bufferindex++] = RecvdByte; // This function will wait for a byte and return and remove it from the queue when it arrives.
+                    cmd_buffer[cmd_bufferindex++] = RecvdByte;
                 // TODO: Add some form of error if the command overflows the buffer.
             }
     }
@@ -130,17 +130,19 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-
+/** USB interrupt handler. */
 void __attribute__((interrupt, auto_psv)) _USB1Interrupt() {
     usb_handler();
     ClearGlobalUsbInterruptFlag();
 }
 
+/** USB suspend event. */
 void USBSuspend(void) {
 
 }
 
-unsigned int atoi(char *str) {
+/** Convert string to integer. */
+static unsigned int atoi(char *str) {
     unsigned int retval = 0;
 
     while (*str >= '0' && *str <= '9')
@@ -149,7 +151,8 @@ unsigned int atoi(char *str) {
     return retval;
 }
 
-unsigned int atoi_next(char *str, unsigned char *target) {
+/** Convert string to integer, and return characters processed. */
+static unsigned int atoi_next(char *str, unsigned char *target) {
     unsigned int diff;
     char *pstr = str;
     *target = 0;
@@ -164,7 +167,8 @@ unsigned int atoi_next(char *str, unsigned char *target) {
     return diff;
 }
 
-void putuchar_cdc(unsigned char num, unsigned char trail) {
+/** Convert a uchar to string and transmit it. */
+static void putuchar_cdc(unsigned char num, unsigned char trail) {
     unsigned char tmpc;
 
     if ((tmpc = num / 100))
@@ -175,7 +179,8 @@ void putuchar_cdc(unsigned char num, unsigned char trail) {
     putc_cdc(trail);
 }
 
-void rawtouch_send(unsigned char touchrelease, unsigned int channel) {
+/** Create data packet for a touch/release event. */
+static void rawtouch_send(unsigned char touchrelease, unsigned int channel) {
     if (TOUCHTX_BUFFER_SIZE - touchtx_count < 8) {
         touchtx_miss++;
         return;
@@ -184,22 +189,25 @@ void rawtouch_send(unsigned char touchrelease, unsigned int channel) {
     touchtx_buffer[touchtx_count++] = CMD_SEND_RAWTOUCH / 10 + '0';
     touchtx_buffer[touchtx_count++] = CMD_SEND_RAWTOUCH % 10 + '0';
     touchtx_buffer[touchtx_count++] = ' ';
-    touchtx_buffer[touchtx_count++] = touchrelease;
+    touchtx_buffer[touchtx_count++] = touchrelease + '0';
     touchtx_buffer[touchtx_count++] = ' ';
     touchtx_buffer[touchtx_count++] = channel / 10 + '0';
     touchtx_buffer[touchtx_count++] = channel % 10 + '0';
     touchtx_buffer[touchtx_count++] = '\n';
 }
 
-void rawtouch_cb(unsigned int channel) {
+/** Touch press event callback. */
+static void rawtouch_cb(unsigned int channel) {
     rawtouch_send('1', channel);
 }
 
-void rawrelease_cb(unsigned int channel) {
+/** Touch release event callback. */
+static void rawrelease_cb(unsigned int channel) {
     rawtouch_send('0', channel);
 }
 
-void gethold_cb(unsigned int channel) {
+/** GetHold functionality callback. */
+static void gethold_cb(unsigned int hold) {
     if (TOUCHTX_BUFFER_SIZE - touchtx_count < 7) {
         touchtx_miss++;
         return;
@@ -208,12 +216,13 @@ void gethold_cb(unsigned int channel) {
     touchtx_buffer[touchtx_count++] = CMD_SEND_HOLD / 10 + '0';
     touchtx_buffer[touchtx_count++] = CMD_SEND_HOLD % 10 + '0';
     touchtx_buffer[touchtx_count++] = ' ';
-    touchtx_buffer[touchtx_count++] = channel / 100 + '0';
-    touchtx_buffer[touchtx_count++] = channel / 10 % 10 + '0';
-    touchtx_buffer[touchtx_count++] = channel % 10 + '0';
+    touchtx_buffer[touchtx_count++] = hold / 100 + '0';
+    touchtx_buffer[touchtx_count++] = hold / 10 % 10 + '0';
+    touchtx_buffer[touchtx_count++] = hold % 10 + '0';
     touchtx_buffer[touchtx_count++] = '\n';
 }
 
+/** Process command from serial interface. */
 void command_process(void) {
     const __psv__ unsigned char *nvmdata;
     unsigned char cmd;
@@ -225,7 +234,7 @@ void command_process(void) {
     cpos += atoi_next(cpos, &cmd);
 
     switch (cmd) {
-        case CMD_SHOW_ROUTE:
+        case CMD_SHOW_ROUTE:    // send route to display controller.
             i = 0;
 
             cpos += atoi_next(cpos, &newroute.id);
@@ -241,11 +250,11 @@ void command_process(void) {
             display_showroute(&newroute);
             break;
 
-        case CMD_HIDE_ROUTE:
+        case CMD_HIDE_ROUTE:    // hide route in display controller.
             display_hideroute(atoi(cpos));
             break;
 
-        case CMD_SET_BRIGHTNESS:
+        case CMD_SET_BRIGHTNESS:    // set brightness of LED drivers.
             cpos += atoi_next(cpos, &r);
             cpos += atoi_next(cpos, &g);
             cpos += atoi_next(cpos, &b);
@@ -253,7 +262,7 @@ void command_process(void) {
             ledcol_setbrightness(r, g, b);
             break;
 
-        case CMD_GET_BRIGHTNESS:
+        case CMD_GET_BRIGHTNESS:    // get present brightness
             putc_cdc(CMD_SEND_BRIGHTNESS / 10 + '0');
             putc_cdc(CMD_SEND_BRIGHTNESS % 10 + '0');
             putc_cdc(' ');
@@ -265,11 +274,11 @@ void command_process(void) {
 
             break;
 
-        case CMD_GET_HOLD:
+        case CMD_GET_HOLD:  // solicit hold input from the user
             touchmap_gethold(gethold_cb);
             break;
 
-        case CMD_GET_CAPABILITIES:
+        case CMD_GET_CAPABILITIES:  // send information on capabilities
             putc_cdc(CMD_SEND_CAPABILITIES / 10 + '0');
             putc_cdc(CMD_SEND_CAPABILITIES % 10 + '0');
             putc_cdc(' ');
@@ -280,7 +289,7 @@ void command_process(void) {
 
             break;
 
-        case CMD_GET_TOUCHMAP:
+        case CMD_GET_TOUCHMAP:  // send touch->hold map
             nvmdata = (const __psv__ unsigned char *)nvm_read(0);
 
             putc_cdc(CMD_SEND_TOUCHMAP / 10 + '0');
@@ -297,16 +306,16 @@ void command_process(void) {
 
             break;
             
-        case CMD_RETRAIN_TOUCHMAP:
+        case CMD_RETRAIN_TOUCHMAP:  // train the touchmap
             touchmap_train();
             break;
 
-        case CMD_RAW_TOUCH_MODE:
+        case CMD_RAW_TOUCH_MODE:    // enter raw touch mode to relay events over serial
             touch_setcallbacks(rawtouch_cb, rawrelease_cb);
             touch_enable();
             break;
 
-        case CMD_RESET:
+        case CMD_RESET:             // reset the board
             asm("RESET");
             break;
             

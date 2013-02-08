@@ -87,9 +87,9 @@ void ledcol_disable(void) {
  * the brightness between the three color channels.  Be cautious not to
  * exceed the current rating of the LEDs.
  *
- * @param Red Channel Brightness
- * @param Green Channel Brightness
- * @param Blue Channel Brightness
+ * @param rb Red Channel Brightness
+ * @param gb Green Channel Brightness
+ * @param bb Blue Channel Brightness
  */
 void ledcol_setbrightness(unsigned char rb, unsigned char gb, unsigned char bb) {
     column_packet pack;

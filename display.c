@@ -6,6 +6,15 @@
 #include "ledrow.h"
 
 static void display_frequpdate(void);
+static void display_clearholds(route *);
+static void display_row_recalc(row *);
+static void display_setholds(route *);
+
+static void fifo_get(display_data *);
+static void fifo_put(display_data *);
+static int fifo_full(void);
+static int fifo_empty(void);
+static void fifo_clear(void);
 
 static unsigned int display_enabled;    /**< Display enabled flag. */
 
@@ -243,7 +252,9 @@ void display_process(void) {
     }
 }
 
-void display_setholds(route *sroute) {
+/** Sets all of the holds in route in the row data structure.
+ */
+static void display_setholds(route *sroute) {
     int i;
 
     int mbright = MAX(sroute->r, sroute->g, sroute->b);
@@ -258,32 +269,41 @@ void display_setholds(route *sroute) {
     }
 }
 
-void display_row_recalc(row *r) {
+/** Recalculate the row summary fields for use in the display process.
+ * This is called internally and automatically.
+ */
+static void display_row_recalc(row *r) {
     int mbright = 0;
     int i;
     route *troute;
 
     r->enabled = 0;
+    r->maxbrightness = 0;
 
-    for (i = 0; i < DISPLAY_COLS; i++)
+    for (i = 0; i < DISPLAY_COLS; i++)      // update enabled and maxbrightness
         if ((troute = r->holds[i])) {
             r->enabled = 1;
             mbright = MAX(troute->r, troute->g, troute->b);
+            if (mbright > r->maxbrightness)
+                r->maxbrightness = mbright;
         }
-    r->maxbrightness = mbright;
 }
 
-void display_clearholds(route *sroute) {
+/** Remove all holds in the route from the row table.
+ */
+static void display_clearholds(route *sroute) {
     int i;
 
     for (i = 0; i < sroute->len; i++) {
         int r = sroute->holds[i] >> 4;
         int c = sroute->holds[i] & 0xF;
-        rows[r].holds[c] = (0);
+        rows[r].holds[c] = NULL;
         display_row_recalc(&rows[r]);
     }
 }
 
+/** Show the route.
+ */
 void display_showroute(route *theroute) {
     int i = 0;
 
@@ -291,11 +311,13 @@ void display_showroute(route *theroute) {
         if (routes[i].len == 0) {
             routes[i] = *theroute;
             display_setholds(&routes[i]);
+            break;
         }
 
     display_frequpdate();
 }
 
+/** Hide the route. */
 void display_hideroute(unsigned int id) {
     int i = 0;
 
@@ -309,9 +331,26 @@ void display_hideroute(unsigned int id) {
     display_frequpdate();
 }
 
+/** Clear all routes from the display.
+ */
+void display_clearroutes(void) {
+    int i, j;
+
+    for (i = 0; i < DISPLAY_MAX_ROUTES; i++) {
+        routes[i].id = 0;
+        routes[i].len = 0;
+    }
+
+    for (i = 0; i < DISPLAY_ROWS; i++)
+        for (j = 0; j < DISPLAY_COLS; j++)
+            rows[i].holds[j] = NULL;
+
+    display_disable();
+}
+
 /** Get entry from the FIFO.
  */
-void fifo_get(display_data *data) {
+static void fifo_get(display_data *data) {
     __builtin_disi(0x3FFF);
     *data = fifo_data[fifo_head++];
     fifo_head %= DISPLAY_FIFO_LEN;
@@ -321,7 +360,7 @@ void fifo_get(display_data *data) {
 
 /** Put entry into the FIFO.
  */
-void fifo_put(display_data *data) {
+static void fifo_put(display_data *data) {
     __builtin_disi(0x3FFF);
     fifo_data[(fifo_head + fifo_count) % DISPLAY_FIFO_LEN] = *data;
     fifo_count++;
@@ -329,16 +368,16 @@ void fifo_put(display_data *data) {
 }
 
 /** Clear the FIFO. */
-void fifo_clear(void) {
+static void fifo_clear(void) {
     fifo_count = 0;         // atomic write
 }
 
 /** Check if FIFO is full. */
-inline int fifo_full(void) {
+static inline int fifo_full(void) {
     return (fifo_count == DISPLAY_FIFO_LEN);
 }
 
 /** Check if FIFO is empty. */
-inline int fifo_empty(void) {
+static inline int fifo_empty(void) {
     return (fifo_count == 0);
 }

@@ -66,13 +66,8 @@ void display_process(void);
 
 void display_showroute(route *);
 void display_hideroute(unsigned int);
-void display_clear(void);
+void display_clearroutes(void);
 
-void fifo_get(display_data *);
-void fifo_put(display_data *);
-int fifo_full(void);
-int fifo_empty(void);
-void fifo_clear(void);
 
 #ifdef	__cplusplus
 }
