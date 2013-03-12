@@ -17,6 +17,7 @@ static int fifo_empty(void);
 static void fifo_clear(void);
 
 static unsigned int display_enabled;    /**< Display enabled flag. */
+static unsigned int blank;              /**< Whether or not there is at least one hold to display. */
 
 static display_data fifo_data[DISPLAY_FIFO_LEN];    /**< FIFO Data buffer. */
 static unsigned int fifo_head;      /**< FIFO head pointer. */
@@ -43,10 +44,11 @@ void display_init(void) {
     fifo_count = 0;
     fifo_misses = 0;
 
-    memset(rows, 0, sizeof(rows));
-    memset(routes, 0, sizeof(routes));
+    memset(rows, 0, sizeof(row)*DISPLAY_ROWS);
+    memset(routes, 0, sizeof(route)*DISPLAY_MAX_ROUTES);
 
     display_enabled = 0;
+    blank = 1;
 
     process_activerow = 0;
     process_pwmpos = 0;
@@ -60,8 +62,10 @@ void display_init(void) {
 
     T2CONbits.T32 = 1;
     T2CONbits.TCKPS = 0;
-    PR3 = 0;
-    PR2 = 0;
+
+    timer_period = CLOCK_FREQUENCY / DISPLAY_SCAN_FREQ / 32;
+    PR3 = timer_period >> 16;
+    PR2 = (unsigned int)(timer_period & 0xFFFF);
     
 }
 
@@ -77,6 +81,7 @@ void display_enable(void) {
     TMR3 = 0;
     _T3IE = 1;
     T2CONbits.TON = 1;
+    _T3IP = DISPLAY_INT_PRIORITY;
 
     if (fifo_empty())
         display_process();
@@ -106,6 +111,9 @@ void __attribute__((interrupt, shadow, auto_psv)) _T3Interrupt(void) {
         return;
     }
 
+    if (blank)
+        return;
+
     if (timer_repeat--)     // display same column data
         return;
 
@@ -132,7 +140,7 @@ void __attribute__((interrupt, shadow, auto_psv)) _T3Interrupt(void) {
 static void display_frequpdate(void) {
     unsigned int pulse_count = 0;
     int i;
-
+/*
     for (i = 0; i < DISPLAY_ROWS; i++)          // count frames per cycle
         pulse_count += rows[i].maxbrightness;
     if (!pulse_count)
@@ -142,7 +150,7 @@ static void display_frequpdate(void) {
     PR3 = timer_period >> 16;
     PR2 = (unsigned int)(timer_period & 0xFFFF);
     TMR2 = 0;
-    TMR3 = 0;
+    TMR3 = 0; */
 }
 
 /** Process the display module.
@@ -157,8 +165,14 @@ void display_process(void) {
     row *prow;
     route *phold;
     int i;
+    int pcount = 0;
 
-    while (!fifo_full()) {      // generate frames until the buffer is full
+    if (blank || !display_enabled)
+        return;
+
+    Nop();
+
+    while (!fifo_full() && pcount < 2) {      // generate frames until the buffer is full
         if (!rows[process_activerow].enabled) {     // if row isn't active, skip
             process_activerow++;
             process_activerow %= DISPLAY_ROWS;
@@ -169,7 +183,7 @@ void display_process(void) {
 
         if (process_pwmpos == 0) {      // first entry for this row
             memset(&cbuffer, 0, sizeof(display_data));
-            memset(&pwmflag, 0, sizeof(pwmflag));
+            memset(pwmflag, 0, DISPLAY_COLOR_DEPTH);
             
             cbuffer.row = process_activerow;        
             for (i = 0; i < DISPLAY_COLS; i++)      // loop through cols in the row
@@ -237,6 +251,7 @@ void display_process(void) {
         }
 
         fifo_put(&cbuffer);
+        pcount++;
 
         if (process_pwmpos >= DISPLAY_COLOR_DEPTH) {    // end of row
             process_activerow = (process_activerow + 1) % DISPLAY_ROWS;
@@ -250,6 +265,8 @@ void display_process(void) {
             }
         }
     }
+
+    Nop();
 }
 
 /** Sets all of the holds in route in the row data structure.
@@ -260,6 +277,7 @@ static void display_setholds(route *sroute) {
     int mbright = MAX(sroute->r, sroute->g, sroute->b);
 
     for (i = 0; i < sroute->len; i++) {
+        blank = 0;
         int r = sroute->holds[i] >> 4;
         int c = sroute->holds[i] & 0xF;
         rows[r].holds[c] = sroute;
@@ -310,6 +328,9 @@ void display_showroute(route *theroute) {
     for (i = 0; i < DISPLAY_MAX_ROUTES; i++)
         if (routes[i].len == 0) {
             routes[i] = *theroute;
+            routes[i].r >>= (8 - DISPLAY_COLOR_DEPTH_BITS);
+            routes[i].g >>= (8 - DISPLAY_COLOR_DEPTH_BITS);
+            routes[i].b >>= (8 - DISPLAY_COLOR_DEPTH_BITS);
             display_setholds(&routes[i]);
             break;
         }
@@ -320,6 +341,7 @@ void display_showroute(route *theroute) {
 /** Hide the route. */
 void display_hideroute(unsigned int id) {
     int i = 0;
+    int nblank = 1;
 
     for (i = 0; i < DISPLAY_MAX_ROUTES; i++)
         if (routes[i].id == id) {
@@ -328,6 +350,18 @@ void display_hideroute(unsigned int id) {
             routes[i].len = 0;
         }
 
+    for (i = 0; i < DISPLAY_ROWS; i++)
+        if (rows[i].enabled)
+            nblank = 0;
+
+    if (nblank) {
+        blank = 1;
+        _T3IE = 0;          // TODO: is there a cleaner way to do this, is this safe?
+        ledcol_clear();
+//        fifo_clear();
+        _T3IE = 1;
+    }
+
     display_frequpdate();
 }
 
@@ -335,6 +369,8 @@ void display_hideroute(unsigned int id) {
  */
 void display_clearroutes(void) {
     int i, j;
+
+    blank = 1;
 
     for (i = 0; i < DISPLAY_MAX_ROUTES; i++) {
         routes[i].id = 0;

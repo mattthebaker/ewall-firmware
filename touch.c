@@ -30,7 +30,7 @@ static const touch_channel cmatrix[TOUCH_CHANNEL_COUNT] =   {{1, 2, 0, 4},
                                                             {1, 13, 3, 11},
                                                             {2, 3, 0, 12},
                                                             {2, 2, 0, 8},
-                                                            {2, 1, 0, 9},
+                                                            {2, 1, 0, 7},
                                                             {1, 3, 2, 5},
                                                             {1, 3, 0, 5},
                                                             {1, 3, 3, 5},
@@ -67,7 +67,7 @@ void touch_init(void) {
     PR1 = TOUCH_TIME_CONSTANT;
     _TCKPS = TOUCH_TIME_PRESCALER;
     _T1IP = TOUCH_TIMER_PRIORITY;
-    _T1IE = 1;
+    _T1IE = 0;
 
     // CTMU configuration
     _CTMUEN = 0;                // disable
@@ -165,6 +165,7 @@ void touch_disable(void) {
 static void touch_next(void) {
     touch_channel prev_chan;
     touch_channel cur_chan;
+    int i;
 
     prev_chan = cmatrix[active_channel];
 
@@ -179,14 +180,13 @@ static void touch_next(void) {
     TOUCH_AMUX_AMSEL1 = cur_chan.amux / 2;
 
     _CH0SA = cur_chan.aindex;   // switch ADC channel
-    Nop(); Nop(); Nop();        // wait a little bit for ADC cap to discharge
+    _SAMP = 1;
+        Nop();        // wait a little bit for ADC cap to discharge
     RMBITW(*(tris[cur_chan.port]), cur_chan.pindex, 1);     // set pin to input
 
     TMR1 = 0;       // reset timer count
 
     _IDISSEN = 0;   // disable current source override grounder
-    _EDG1STAT = 0;  // clear CTMU triggers
-    _EDG2STAT = 0;
 
     __builtin_disi(0x3fff); // disable interrupts for critical timing
     _EDG1STAT = 1;          // enable current source
@@ -217,6 +217,7 @@ static void touch_interval_delay(void) {
 static void touch_process_samples(void) {
     unsigned int thresh_exceeded = 0;
     unsigned int i;
+    unsigned int avg;
 
     if (avg_depth < TOUCH_AVG_DEPTH) {      // accumulate baseline before detecting touch
         for (i = 0; i < TOUCH_CHANNEL_COUNT; i++)
@@ -226,10 +227,11 @@ static void touch_process_samples(void) {
     }
 
     for (i = 0; i < TOUCH_CHANNEL_COUNT; i++) {     // touch detection
-        if ((samples[i] - (basecount[i] / TOUCH_AVG_DEPTH)) > TOUCH_DETECT_THRESHOLD) {
+        avg = basecount[i] / TOUCH_AVG_DEPTH;
+        if (avg > samples[i] && (avg - samples[i]) > TOUCH_DETECT_THRESHOLD) {
             thresh_exceeded++;
             threshold_count[i]++;
-            if (threshold_count[i] == 3) {  // soft debounc
+            if (threshold_count[i] == 4) {  // soft debounc
                 if (press_cb)               // if touched, callback
                     press_cb(i);
             }
@@ -274,6 +276,11 @@ void __attribute__((interrupt, shadow, auto_psv)) _ADC1Interrupt(void) {
     _TON = 0;   // TODO: this may need to be shut off in the timer interrupt
     _IDISSEN = 1;
 
+    _EDG2STAT = 0;
+    _EDG1STAT = 0;
+
+    //SET_CPU_IPL(0);
+
     samples[active_channel] = ADC1BUF0;
 
     if (shutting_down) {    // shutdown (break interrupt loop)
@@ -306,6 +313,7 @@ void __attribute__((interrupt, shadow, auto_psv)) _T1Interrupt(void) {
     if (!long_delay)
         return;
 
+    _T1IE = 0;
     long_delay = 0;
     TMR1 = 0;   // reset time period for touch
     PR1 = TOUCH_TIME_CONSTANT;

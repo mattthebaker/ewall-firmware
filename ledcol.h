@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#define LEDCOL_INT_PRIORITY 3           /** LEDCOL interrupt priority. */
+#define LEDCOL_INT_PRIORITY 5           /** LEDCOL interrupt priority. */
 
 #define LEDCOL_CMD_CONTROL  0xFF00      /** TLC5952 control command. */
 #define LEDCOL_CMD_DATA     0x0000      /** TLC5952 data command. */
@@ -23,9 +23,9 @@ extern "C" {
 #define LEDCOL_PORT_C0_LAT  _RB4        /** uC port for C0_LAT. */
 #define LEDCOL_PORT_C1_LAT  _RC6        /** uC port for C1_LAT. */
 
-#define MAX_CURRENT_R ((int)20.0/35*127)    /** Max current for R channel, set to 20mA. */
-#define MAX_CURRENT_G ((int)20.0/35*127)    /** Max current for G channel, set to 20mA. */
-#define MAX_CURRENT_B ((int)20.0/26.3*127)  /** Max current for B channel, set to 20mA. */
+#define MAX_CURRENT_R ((int)(20.0/35*127))    /** Max current for R channel, set to 20mA. */
+#define MAX_CURRENT_G ((int)(20.0/35*127))    /** Max current for G channel, set to 20mA. */
+#define MAX_CURRENT_B ((int)(20.0/26.3*127))  /** Max current for B channel, set to 20mA. */
 
 /** Data packet for TLC5952. */
 typedef union {

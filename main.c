@@ -77,6 +77,10 @@ int main(int argc, char** argv) {
     nvm_init();
     touchmap_init();
 
+    ledcol_enable();
+    ledcol_clear();
+    display_enable();
+
     initCDC();
     usb_init(cdc_device_descriptor, cdc_config_descriptor, cdc_str_descs, USB_NUM_STRINGS);
     usb_start();
@@ -90,7 +94,7 @@ int main(int argc, char** argv) {
 
     while (1) {
         display_process();
-        touchmap_process();
+//        touchmap_process();
 
         if (cmd_processflag)
             command_process();
@@ -114,15 +118,19 @@ int main(int argc, char** argv) {
         }
 
         if (cmd_bufferfree)
-            while (poll_getc_cdc(&RecvdByte)) { // Same as poll_getc_cdc except that byte is NOT removed from queue.
+            while (poll_getc_cdc(&RecvdByte)) {
                 if (RecvdByte == '\n') {
                     cmd_buffer[cmd_bufferindex] = 0;
                     cmd_bufferfree = 0;
                     cmd_bufferindex = 0;
                     cmd_processflag = 1;
                 }
-                else
-                    cmd_buffer[cmd_bufferindex++] = RecvdByte;
+                else {
+                    if (cmd_bufferindex == CMD_BUFFER_SIZE)
+                        cmd_bufferindex = 0;
+                    if (RecvdByte != '\r')         
+                        cmd_buffer[cmd_bufferindex++] = RecvdByte;
+                }
                 // TODO: Add some form of error if the command overflows the buffer.
             }
     }
@@ -132,8 +140,8 @@ int main(int argc, char** argv) {
 
 /** USB interrupt handler. */
 void __attribute__((interrupt, auto_psv)) _USB1Interrupt() {
-    usb_handler();
     ClearGlobalUsbInterruptFlag();
+    usb_handler();
 }
 
 /** USB suspend event. */
@@ -189,7 +197,7 @@ static void rawtouch_send(unsigned char touchrelease, unsigned int channel) {
     touchtx_buffer[touchtx_count++] = CMD_SEND_RAWTOUCH / 10 + '0';
     touchtx_buffer[touchtx_count++] = CMD_SEND_RAWTOUCH % 10 + '0';
     touchtx_buffer[touchtx_count++] = ' ';
-    touchtx_buffer[touchtx_count++] = touchrelease + '0';
+    touchtx_buffer[touchtx_count++] = touchrelease;
     touchtx_buffer[touchtx_count++] = ' ';
     touchtx_buffer[touchtx_count++] = channel / 10 + '0';
     touchtx_buffer[touchtx_count++] = channel % 10 + '0';
@@ -266,6 +274,8 @@ void command_process(void) {
             putc_cdc(CMD_SEND_BRIGHTNESS / 10 + '0');
             putc_cdc(CMD_SEND_BRIGHTNESS % 10 + '0');
             putc_cdc(' ');
+
+            ledcol_getbrightness(&r, &g, &b);
 
             putuchar_cdc(r, ' ');
             putuchar_cdc(g, ' ');

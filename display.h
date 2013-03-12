@@ -14,12 +14,15 @@
 extern "C" {
 #endif
 
+#define DISPLAY_INT_PRIORITY    5
+
 #define CLOCK_FREQUENCY         16000000    /**< Clock Frequency. */
 #define DISPLAY_SCAN_FREQ       60          /**< Display updates per second. */
 
 #define DISPLAY_HEARTBEAT_PERIOD    5       /**< Duration of heartbeat pulse. */
 
-#define DISPLAY_COLOR_DEPTH     32          /**< Display color depth. */
+#define DISPLAY_COLOR_DEPTH         8      /**< Display color depth. */
+#define DISPLAY_COLOR_DEPTH_BITS    3       /**< Bits in color. */
 
 #define DISPLAY_ROUTE_LEN       20          /**< Maximum route length. */
 #define DISPLAY_MAX_ROUTES      8           /**< Maximum active routes. */

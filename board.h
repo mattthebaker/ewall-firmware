@@ -12,6 +12,8 @@
 extern "C" {
 #endif
 
+#define USB_INT_PRIORITY 4
+    
 void board_init(void);
 
 #ifdef	__cplusplus

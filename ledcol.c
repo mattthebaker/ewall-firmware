@@ -72,11 +72,20 @@ void ledcol_init(void) {
 void ledcol_enable(void) {
     SPI1STATbits.SPIEN = 1;
     SPI2STATbits.SPIEN = 1;
+    _SPI1IF = 0;
+    _SPI1IE = 1;
+    _SPI2IF = 0;
+    _SPI2IE = 1;
 }
 
 /** Disable the SPI channels for the LED Column Driver.
  */
 void ledcol_disable(void) {
+    while (!SPI1STATbits.SRMPT)
+        ;
+    while (!SPI2STATbits.SRMPT)
+        ;
+    
     SPI1STATbits.SPIEN = 0;
     SPI2STATbits.SPIEN = 0;
 }
@@ -129,6 +138,11 @@ void ledcol_getbrightness(unsigned char *pr, unsigned char *pg, unsigned char *p
  * @param cdata Column data packet.
  */
 void ledcol_display(column_packet *cdata) {
+    while (!SPI1STATbits.SRMPT)
+        ;
+    while (!SPI2STATbits.SRMPT)
+        ;
+    
     SPI1BUF = cdata->data16[1];
     SPI2BUF = cdata->data16[3];
     SPI1BUF = cdata->data16[0];
