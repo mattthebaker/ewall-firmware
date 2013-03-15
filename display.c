@@ -100,7 +100,7 @@ void display_disable(void) {
 /** Timer3 Interrupt Service Routine.
  * Update the display frame.
  */
-void __attribute__((interrupt, shadow, auto_psv)) _T3Interrupt(void) {
+void __attribute__((interrupt, auto_psv)) _T3Interrupt(void) {
     _T3IF = 0;
 
     if (!display_enabled) { // if disabled, clear the display, stop timer
@@ -140,7 +140,7 @@ void __attribute__((interrupt, shadow, auto_psv)) _T3Interrupt(void) {
 static void display_frequpdate(void) {
     unsigned int pulse_count = 0;
     int i;
-/*
+
     for (i = 0; i < DISPLAY_ROWS; i++)          // count frames per cycle
         pulse_count += rows[i].maxbrightness;
     if (!pulse_count)
@@ -150,7 +150,7 @@ static void display_frequpdate(void) {
     PR3 = timer_period >> 16;
     PR2 = (unsigned int)(timer_period & 0xFFFF);
     TMR2 = 0;
-    TMR3 = 0; */
+    TMR3 = 0;
 }
 
 /** Process the display module.
@@ -172,7 +172,7 @@ void display_process(void) {
 
     Nop();
 
-    while (!fifo_full() && pcount < 2) {      // generate frames until the buffer is full
+    while (!fifo_full() && pcount < 3) {      // generate frames until the buffer is full
         if (!rows[process_activerow].enabled) {     // if row isn't active, skip
             process_activerow++;
             process_activerow %= DISPLAY_ROWS;
@@ -358,10 +358,10 @@ void display_hideroute(unsigned int id) {
         blank = 1;
         _T3IE = 0;          // TODO: is there a cleaner way to do this, is this safe?
         ledcol_clear();
-//        fifo_clear();
         _T3IE = 1;
     }
 
+    fifo_clear();
     display_frequpdate();
 }
 

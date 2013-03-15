@@ -21,7 +21,7 @@ extern "C" {
 #define TOUCH_AMUX_AMSEL1       _RB9    /**< uC port for AMSEL1. */
 
 /** Touch current pulse duration.  20us -- 320 counts @ 16Mhz FCY */
-#define TOUCH_TIME_CONSTANT     160
+#define TOUCH_TIME_CONSTANT     20
 #define TOUCH_TIME_PRESCALER    0       /**< Current pulse prescaler. 1:1. */
 
 #define TOUCH_SAMPLING_DELAY    19000   /**< Long delay between samples. */
@@ -30,13 +30,14 @@ extern "C" {
 #define TOUCH_DETECT_THRESHOLD  100     /**< Touch detection threshold. */
 #define TOUCH_AVG_DEPTH         32      /**< Depth of baseline value average. */
 
-#define TOUCH_ADC_PRIORITY      5       /**< ADC interrupt priority. */
-#define TOUCH_TIMER_PRIORITY    2       /**< Timer1 interrupt priority. */
+#define TOUCH_ADC_PRIORITY      2       /**< ADC interrupt priority. */
+#define TOUCH_TIMER_PRIORITY    6       /**< Timer1 interrupt priority. */
 
 void touch_init(void);
 void touch_setcallbacks(void (*)(unsigned int), void (*)(unsigned int));
 void touch_enable(void);
 void touch_disable(void);
+void touch_process(void);
 
 
 #ifdef	__cplusplus

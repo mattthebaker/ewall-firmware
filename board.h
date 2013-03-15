@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-#define USB_INT_PRIORITY 4
+#define USB_INT_PRIORITY 3
     
 void board_init(void);
 

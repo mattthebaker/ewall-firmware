@@ -51,6 +51,8 @@ static unsigned int shutting_down = 0;  /**< Shutdown process flag. */
 static unsigned int active_channel = 0; /**< Active touch channel. */
 static unsigned int long_delay = 0;     /**< Long delay flag. */
 
+static unsigned int touch_process_flag;       /**< Samples need processing Flag.*/
+
 static unsigned int avg_depth;      /**< Depth of accumulated average. */
 static unsigned int samples[TOUCH_CHANNEL_COUNT];   /**< Most recent samples. */
 static unsigned int basecount[TOUCH_CHANNEL_COUNT]; /**< Base capacitance count. */
@@ -76,7 +78,7 @@ void touch_init(void) {
     _EDG1POL = 1;
     _EDG1SEL = 1;               // TODO: Is this right? Want to manually set this edge.
     _CTTRIG = 1;                // trigger A/D conversion when current shuts off
-    _IRNG = 2;                  // 5.5 uA
+    _IRNG = 3;                  // 5.5 uA
     _IDISSEN = 1;               // ground current source
     _EDG2STAT = 0;              // clear edge status
     _EDG1STAT = 0;
@@ -89,6 +91,8 @@ void touch_init(void) {
 
     press_cb = NULL;
     release_cb = NULL;
+
+    touch_process_flag = 0;
 }
 
 /** Register touch event callbacks.
@@ -129,6 +133,8 @@ void touch_enable(void) {
     _ADON = 1;                  // enable ADC
     _AD1IF = 0;
     _AD1IE = 1;                 // enable interrupts
+
+    _T1IE = 1;
 
     filter_reset();
 
@@ -181,6 +187,7 @@ static void touch_next(void) {
 
     _CH0SA = cur_chan.aindex;   // switch ADC channel
     _SAMP = 1;
+    for (i = 0; i < 2; i++)
         Nop();        // wait a little bit for ADC cap to discharge
     RMBITW(*(tris[cur_chan.port]), cur_chan.pindex, 1);     // set pin to input
 
@@ -207,6 +214,26 @@ static void touch_interval_delay(void) {
     _T1IF = 0;
     _T1IE = 1;
     _TON = 1;
+}
+
+void touch_process(void) {
+    if (!enabled || !touch_process_flag)
+        return;
+
+    touch_process_flag = 0;
+
+    if (long_delay) {
+        long_delay = 0;
+        touch_next();
+        return;
+    }
+
+    touch_process_samples();
+            
+    if (avg_depth == TOUCH_AVG_DEPTH)   // if average is stable, long delay
+        touch_interval_delay();
+    else
+        touch_next();                   // average isn't ready, get more samples
 }
 
 /** Process a batch of touch samples.
@@ -237,7 +264,7 @@ static void touch_process_samples(void) {
             }
         }
         else
-            if (threshold_count[i] > 3) {   // if released, callback
+            if (threshold_count[i] > 4) {   // if released, callback
                 if (release_cb)
                     release_cb(i);
                 threshold_count[i] = 0;
@@ -270,7 +297,7 @@ static void filter_reset(void) {
  * processing handler.  If we have a stable baseline, it will trigger a long
  * delay, otherwise it will start the next sample.
  */
-void __attribute__((interrupt, shadow, auto_psv)) _ADC1Interrupt(void) {
+void __attribute__((interrupt, auto_psv)) _ADC1Interrupt(void) {
     _AD1IF = 0;
 
     _TON = 0;   // TODO: this may need to be shut off in the timer interrupt
@@ -288,36 +315,29 @@ void __attribute__((interrupt, shadow, auto_psv)) _ADC1Interrupt(void) {
         return;
     }
 
-    if (active_channel == TOUCH_CHANNEL_COUNT - 1) {    // sampled every channel
-        touch_process_samples();
-            
-        if (avg_depth == TOUCH_AVG_DEPTH)   // if average is stable, long delay
-            touch_interval_delay();
-        else
-            touch_next();                   // average isn't ready, get more samples
-        
-    }
-    else {
+    if (active_channel == TOUCH_CHANNEL_COUNT - 1)  // sampled every channel
+        touch_process_flag = 1;
+    else 
         touch_next();
-    }
 }
 
 /** Timer1 Interrupt Service Routine.
  * Handles the end of the long sampling delay.  It shuts off the timer,
  * and reconfigures it for generating the touch current pulse.
  */
-void __attribute__((interrupt, shadow, auto_psv)) _T1Interrupt(void) {
+void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     _T1IF = 0;
     _TON = 0;   // disable timer
 
     if (!long_delay)
         return;
 
-    _T1IE = 0;
-    long_delay = 0;
+//    _T1IE = 0;
+//    long_delay = 0;
+    touch_process_flag = 1;
     TMR1 = 0;   // reset time period for touch
     PR1 = TOUCH_TIME_CONSTANT;
     _TCKPS = TOUCH_TIME_PRESCALER; // reset prescaler
 
-    touch_next();   // restart sample process
+//    touch_next();   // restart sample process
 }

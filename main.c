@@ -88,12 +88,16 @@ int main(int argc, char** argv) {
     EnableUsbPerifInterrupts(USB_TRN + USB_SOF + USB_UERR + USB_URST);
     EnableUsbGlobalInterrupt();
 
-    while (usb_device_state < CONFIGURED_STATE);
+/*    do {
+        usb_handler();
+    } */while (usb_device_state < CONFIGURED_STATE);
 
     usb_register_sof_handler(CDCFlushOnTimeout); // Register our CDC timeout handler after device configured
 
     while (1) {
+//        usb_handler();
         display_process();
+        touch_process();
 //        touchmap_process();
 
         if (cmd_processflag)
@@ -140,8 +144,8 @@ int main(int argc, char** argv) {
 
 /** USB interrupt handler. */
 void __attribute__((interrupt, auto_psv)) _USB1Interrupt() {
-    ClearGlobalUsbInterruptFlag();
     usb_handler();
+    ClearGlobalUsbInterruptFlag();
 }
 
 /** USB suspend event. */

@@ -32,6 +32,6 @@ void board_init(void) {
     _RP21R = 7;    // SPI1 data output to RP21
     __builtin_write_OSCCONL(OSCCON | _OSCCON_IOLOCK_MASK);  // lock pin select
 
-    //_USB1IP = USB_INT_PRIORITY;
+    _USB1IP = USB_INT_PRIORITY;
 
 }
