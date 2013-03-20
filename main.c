@@ -81,6 +81,9 @@ int main(int argc, char** argv) {
     ledcol_clear();
     display_enable();
 
+//    touch_enable();
+//    while (1) touch_process();
+
     initCDC();
     usb_init(cdc_device_descriptor, cdc_config_descriptor, cdc_str_descs, USB_NUM_STRINGS);
     usb_start();
@@ -193,7 +196,7 @@ static void putuchar_cdc(unsigned char num, unsigned char trail) {
 
 /** Create data packet for a touch/release event. */
 static void rawtouch_send(unsigned char touchrelease, unsigned int channel) {
-    if (TOUCHTX_BUFFER_SIZE - touchtx_count < 8) {
+    if (TOUCHTX_BUFFER_SIZE - touchtx_count < 10) {
         touchtx_miss++;
         return;
     }
@@ -203,8 +206,10 @@ static void rawtouch_send(unsigned char touchrelease, unsigned int channel) {
     touchtx_buffer[touchtx_count++] = ' ';
     touchtx_buffer[touchtx_count++] = touchrelease;
     touchtx_buffer[touchtx_count++] = ' ';
-    touchtx_buffer[touchtx_count++] = channel / 10 + '0';
-    touchtx_buffer[touchtx_count++] = channel % 10 + '0';
+    touchtx_buffer[touchtx_count++] = (channel & 0x1F) / 10 + '0';
+    touchtx_buffer[touchtx_count++] = (channel & 0x1F) % 10 + '0';
+    touchtx_buffer[touchtx_count++] = ' ';
+    touchtx_buffer[touchtx_count++] = ((channel & 0xE0) >> 5) + '0';
     touchtx_buffer[touchtx_count++] = '\n';
 }
 
