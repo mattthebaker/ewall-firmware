@@ -31,12 +31,15 @@
 #define CMD_RETRAIN_TOUCHMAP    0x08
 #define CMD_RAW_TOUCH_MODE      0x09
 #define CMD_RESET               0x0a
+#define CMD_GET_RC              0x0b
+#define CMD_SET_RC              0x0c
 
 #define CMD_SEND_BRIGHTNESS     0x04
 #define CMD_SEND_HOLD           0x05
 #define CMD_SEND_CAPABILITIES   0x06
 #define CMD_SEND_TOUCHMAP       0x07
 #define CMD_SEND_RAWTOUCH       0x09
+#define CMD_SEND_RC             0x0b
 
 #define CMD_BUFFER_SIZE         120
 #define TOUCHTX_BUFFER_SIZE     45
@@ -244,6 +247,7 @@ void command_process(void) {
     const __psv__ unsigned char *nvmdata;
     unsigned char cmd;
     unsigned char r, g, b;
+    unsigned char levels[TOUCH_RC_LEVEL_COUNT];
     char *cpos = cmd_buffer;
     route newroute;
     int i, j;
@@ -290,6 +294,32 @@ void command_process(void) {
             putuchar_cdc(g, ' ');
             putuchar_cdc(b, '\n');
             CDC_Flush_In_Now();
+
+            break;
+
+        case CMD_GET_RC:            // get rc touch detect levels
+            putc_cdc(CMD_SEND_RC / 10 + '0');
+            putc_cdc(CMD_SEND_RC % 10 + '0');
+            putc_cdc(' ');
+
+            touch_getrclevels(levels);
+
+            for (i = 0; i < TOUCH_RC_LEVEL_COUNT; i++) {
+                putc_cdc(levels[i] / 10 + '0');
+                putc_cdc(levels[i] % 10 + '0');
+                putc_cdc(' ');
+            }
+
+            putc_cdc('\n');
+            CDC_Flush_In_Now();
+
+            break;
+
+        case CMD_SET_RC:
+            for (i = 0; i < TOUCH_RC_LEVEL_COUNT; i++)
+                cpos += atoi_next(cpos, &levels[i]);
+
+            touch_setrclevels(levels);
 
             break;
 

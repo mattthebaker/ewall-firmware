@@ -153,6 +153,14 @@ static void display_frequpdate(void) {
     TMR3 = 0;
 }
 
+inline void display_hbupdate(void) {
+    hb_fullcount = (hb_fullcount + 1) % (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ);
+    if (hb_fullcount >= DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ / 2)
+        hb_pos = (DISPLAY_COLOR_DEPTH * (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ - hb_fullcount - 1) * 2) / (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ) + 1;
+    else
+        hb_pos = (DISPLAY_COLOR_DEPTH * hb_fullcount * 2) / (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ) + 1;
+}
+
 /** Process the display module.
  * This generates frames to send to the LED drivers.  It will generate frames
  * until the FIFO is full.  This module handles software PWM, heartbeat mode,
@@ -170,12 +178,13 @@ void display_process(void) {
     if (blank || !display_enabled)
         return;
 
-    Nop();
-
     while (!fifo_full() && pcount < 3) {      // generate frames until the buffer is full
         if (!rows[process_activerow].enabled) {     // if row isn't active, skip
             process_activerow++;
             process_activerow %= DISPLAY_ROWS;
+            if (process_activerow == 0) {   // scanned through entire array
+                display_hbupdate();
+            }
             continue;
         }
         
@@ -226,7 +235,7 @@ void display_process(void) {
                 if ((phold = prow->holds[i])) {
                     if (phold->heartbeat) {
                         if (phold->r * hb_pos / DISPLAY_COLOR_DEPTH == process_pwmpos)
-                             ledcol_bitclr_r(&cbuffer.cdata, i);
+                            ledcol_bitclr_r(&cbuffer.cdata, i);
                         if (phold->g * hb_pos / DISPLAY_COLOR_DEPTH == process_pwmpos)
                             ledcol_bitclr_g(&cbuffer.cdata, i);
                         if (phold->b * hb_pos / DISPLAY_COLOR_DEPTH == process_pwmpos)
@@ -253,20 +262,15 @@ void display_process(void) {
         fifo_put(&cbuffer);
         pcount++;
 
-        if (process_pwmpos >= DISPLAY_COLOR_DEPTH) {    // end of row
+        if (process_pwmpos >= prow->maxbrightness) {    // end of row
             process_activerow = (process_activerow + 1) % DISPLAY_ROWS;
             process_pwmpos = 0;
             if (process_activerow == 0) {   // scanned through entire array
-                hb_fullcount = (hb_fullcount + 1) % (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ);
-                if (hb_fullcount >= DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ / 2)
-                    hb_pos = (DISPLAY_COLOR_DEPTH * (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ - hb_fullcount - 1) * 2) / (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ) + 1;
-                else
-                    hb_pos = (DISPLAY_COLOR_DEPTH * hb_fullcount * 2) / (DISPLAY_HEARTBEAT_PERIOD * DISPLAY_SCAN_FREQ) + 1;
+                display_hbupdate();
             }
         }
     }
 
-    Nop();
 }
 
 /** Sets all of the holds in route in the row data structure.
@@ -323,19 +327,27 @@ static void display_clearholds(route *sroute) {
 /** Show the route.
  */
 void display_showroute(route *theroute) {
-    int i = 0;
+    int i;
 
     for (i = 0; i < DISPLAY_MAX_ROUTES; i++)
-        if (routes[i].len == 0) {
-            routes[i] = *theroute;
-            routes[i].r >>= (8 - DISPLAY_COLOR_DEPTH_BITS);
-            routes[i].g >>= (8 - DISPLAY_COLOR_DEPTH_BITS);
-            routes[i].b >>= (8 - DISPLAY_COLOR_DEPTH_BITS);
-            display_setholds(&routes[i]);
+        if (routes[i].id == theroute->id) {
+            display_clearholds(&routes[i]);   // route already displayed, remove and then re-add
             break;
         }
 
-    display_frequpdate();
+    if (i >= DISPLAY_MAX_ROUTES) 
+        for (i = 0; i < DISPLAY_MAX_ROUTES; i++)
+            if (routes[i].len == 0)
+                break;
+
+    if (i < DISPLAY_MAX_ROUTES) {
+        routes[i] = *theroute;
+        routes[i].r >>= (8 - DISPLAY_COLOR_DEPTH_BITS);
+        routes[i].g >>= (8 - DISPLAY_COLOR_DEPTH_BITS);
+        routes[i].b >>= (8 - DISPLAY_COLOR_DEPTH_BITS);
+        display_setholds(&routes[i]);
+        display_frequpdate();
+    }
 }
 
 /** Hide the route. */
@@ -372,6 +384,10 @@ void display_clearroutes(void) {
 
     blank = 1;
 
+    _T3IE = 0;          // TODO: is there a cleaner way to do this, is this safe?
+    ledcol_clear();
+    _T3IE = 1;
+
     for (i = 0; i < DISPLAY_MAX_ROUTES; i++) {
         routes[i].id = 0;
         routes[i].len = 0;
@@ -381,6 +397,7 @@ void display_clearroutes(void) {
         for (j = 0; j < DISPLAY_COLS; j++)
             rows[i].holds[j] = NULL;
 
+    fifo_clear();
     display_disable();
 }
 

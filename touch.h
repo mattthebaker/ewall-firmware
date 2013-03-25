@@ -39,6 +39,7 @@ extern "C" {
 
 #define TOUCH_HYST_COUNT        5
 
+#define TOUCH_RC_LEVEL_COUNT    6
 #define TOUCH_RC_1              0.17
 #define TOUCH_RC_2              0.28
 #define TOUCH_RC_3              0.43
@@ -53,6 +54,8 @@ void touch_setcallbacks(void (*)(unsigned int), void (*)(unsigned int));
 void touch_enable(void);
 void touch_disable(void);
 void touch_process(void);
+void touch_setrclevels(unsigned char[]);
+void touch_getrclevels(unsigned char *);
 
 
 #ifdef	__cplusplus

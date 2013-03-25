@@ -52,8 +52,8 @@ static unsigned int enabled = 0;        /**< Touch enabled flag. */
 static unsigned int shutting_down = 0;  /**< Shutdown process flag. */
 static unsigned int active_channel = 0; /**< Active touch channel. */
 static unsigned int long_delay = 0;     /**< Long delay flag. */
-static unsigned int short_delay = 0;
-static unsigned int delay = 0;
+static unsigned int short_delay = 0;    /**< Short delay flag. */
+static unsigned int delay = 0;          /**< Any delay flag. */
 
 static unsigned int touch_process_flag;       /**< Samples need processing Flag.*/
 
@@ -72,8 +72,9 @@ static unsigned int temp_depth;
 static touch_channel prev_chan;
 static touch_channel cur_chan;
 
+static unsigned char rc_levels[] = {100*TOUCH_RC_1, 100*TOUCH_RC_2, 100*TOUCH_RC_3, 100*TOUCH_RC_4, 100*TOUCH_RC_5, 100*TOUCH_RC_6};
 static unsigned int rc_detect;
-static unsigned int rc_samples;
+static unsigned int rc_samplecount;
 static unsigned int rc_i;
 static unsigned int rc_avgs[2];
 
@@ -171,12 +172,8 @@ void touch_enable(void) {
     active_channel = TOUCH_CHANNEL_COUNT - 1;
 
     temp_depth = 0;
-    temp_samples[0] = 0;
-    temp_samples[1] = 0;
-    temp_samples[2] = 0;
-    temp_samples[3] = 0;
-    temp_samples[4] = 0;
-    temp_samples[5] = 0;
+    for (i = 0; i < 6; i++)
+        temp_samples[i] = 0;
 
     delay = long_delay = short_delay = 0;
     rc_detect = 0;
@@ -361,17 +358,17 @@ static void touch_process_samples(void) {
 }
 
 static void touch_process_rc(void) {
-    static const unsigned char vpercent[] = {100*TOUCH_RC_1, 100*TOUCH_RC_2, 100*TOUCH_RC_3, 100*TOUCH_RC_4, 100*TOUCH_RC_5, 100*TOUCH_RC_6};
+
     int i;
 
-    if (rc_samples == 64) {
+    if (rc_samplecount == 64) {
         unsigned int center;
         unsigned int window = (p2basecount[rc_i] - rc_avgs[1]/2)/32;
         unsigned w_width = window*((unsigned int)(100*TOUCH_RC_W))/100;
         unsigned int rc_val = (rc_avgs[0] - rc_avgs[1])/64;
 
         for (i = 0; i < 6; i++) {
-            center = window*(vpercent[i])/100;
+            center = window*(rc_levels[i])/100;
             if (rc_val >= (center - w_width) && rc_val <= (center + w_width))
                 if (press_cb)
                     press_cb(i << 5 | rc_i);
@@ -382,7 +379,7 @@ static void touch_process_rc(void) {
 
     for (rc_i; rc_i < TOUCH_CHANNEL_COUNT; rc_i++)
         if (threshold_count[rc_i] == TOUCH_HYST_COUNT) {
-            rc_samples = 0;
+            rc_samplecount = 0;
             rc_avgs[0] = 0;
             rc_avgs[1] = 0;
             cur_chan = cmatrix[rc_i];
@@ -392,7 +389,7 @@ static void touch_process_rc(void) {
 
     if (rc_i >= TOUCH_CHANNEL_COUNT) {
         rc_i = 0;
-        rc_samples = 0;
+        rc_samplecount = 0;
         rc_detect = 0;
         touch_nextchannel();
     }
@@ -451,7 +448,7 @@ void __attribute__((interrupt, auto_psv)) _ADC1Interrupt(void) {
 //        if (avg > samples[rc_i] && (avg - samples[rc_i]) > TOUCH_DETECT_THRESHOLD) {
             rc_avgs[0] += temp_samples[1];
             rc_avgs[1] += ADC1BUF0;
-            rc_samples++;
+            rc_samplecount++;
  //       }
     }
 
@@ -461,7 +458,7 @@ void __attribute__((interrupt, auto_psv)) _ADC1Interrupt(void) {
     }
 
     if (rc_detect) {
-        if (rc_samples == 64)
+        if (rc_samplecount == 64)
             touch_process_rc();
         else
             touch_nextchannel();
@@ -508,4 +505,22 @@ void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     _TCKPS = TOUCH_TIME_PRESCALER; // reset prescaler
 
 //    touch_next();   // restart sample process
+}
+
+/** Set RC touch detection levels.
+ */
+void touch_setrclevels(unsigned char levels[]) {
+    int i;
+
+    for (i = 0; i < TOUCH_RC_LEVEL_COUNT; i++)
+        rc_levels[i] = levels[i];
+}
+
+/** Get RC touch detection levels.
+ */
+void touch_getrclevels(unsigned char *levels) {
+    int i;
+
+    for (i = 0; i < TOUCH_RC_LEVEL_COUNT; i++)
+        levels[i] = rc_levels[i];
 }

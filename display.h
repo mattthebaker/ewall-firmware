@@ -21,8 +21,8 @@ extern "C" {
 
 #define DISPLAY_HEARTBEAT_PERIOD    5       /**< Duration of heartbeat pulse. */
 
-#define DISPLAY_COLOR_DEPTH         16      /**< Display color depth. */
-#define DISPLAY_COLOR_DEPTH_BITS    4       /**< Bits in color. */
+#define DISPLAY_COLOR_DEPTH         32      /**< Display color depth. */
+#define DISPLAY_COLOR_DEPTH_BITS    5       /**< Bits in color. */
 
 #define DISPLAY_ROUTE_LEN       20          /**< Maximum route length. */
 #define DISPLAY_MAX_ROUTES      8           /**< Maximum active routes. */

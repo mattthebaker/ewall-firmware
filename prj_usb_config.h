@@ -8,7 +8,7 @@
 #define UART_BAUD_setup(x)  U1BRG = x 
 #define CDC_FLUSH_MS 4 // how many ms timeout before cdc in to host is sent
 
-//#define USB_INTERRUPTS 1
+#define USB_INTERRUPTS 1
 
 #define USB_VID (0x04d8)
 #define USB_PID (0x5555)  // TODO: apply for PID from microchip
