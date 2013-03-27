@@ -32,6 +32,9 @@ extern "C" {
 #define DISPLAY_ROWS            16          /**< Number of Rows in display. */
 #define DISPLAY_COLS            16          /**< Number of Cols in display. */
 
+#define DISPLAY_FLASH_PERIOD        2       /**< Time between color cycles on conflicted holds. */
+#define DISPLAY_MAX_CONFLICTS       32      /**< Max number of holds that can have conflicts. */
+
 #define MAX(a,b,c) ((a > b)? a: ((b > c)? b : c))   /**< Max of three macro. */
 
 /** Structure that stores a route for display. */
@@ -53,6 +56,19 @@ typedef struct {
     unsigned char maxbrightness;    /**< Max brightness in the row. */
     route *holds[DISPLAY_COLS];     /**< Pointer back to a route structure for each hold. */
 } row;
+
+typedef struct conflict {
+    unsigned char head;
+    union {
+        unsigned char pos;
+        struct {
+            unsigned col:4;
+            unsigned row:4;
+        };
+    };
+    route *route;
+    struct conflict *next;
+} conflict;
 
 /** Display data to send to the row/column drivers.
  * This is passed from the display module to the line drivers. */

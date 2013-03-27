@@ -10,6 +10,10 @@ static void display_clearholds(route *);
 static void display_row_recalc(row *);
 static void display_setholds(route *);
 
+static void conflict_add(unsigned char, route *);
+static void conflict_process(void);
+static void conflict_remove(route *);
+
 static void fifo_get(display_data *);
 static void fifo_put(display_data *);
 static int fifo_full(void);
@@ -37,6 +41,9 @@ static unsigned int timer_activerow;    /**< Active output row. */
 static unsigned int hb_pos;             /**< Heartbeat intensity level. */
 static unsigned int hb_fullcount;       /**< Heartbeat counter, used for intensity calculation. */
 
+static unsigned int cf_count;           /**< Conflict counter. */
+static conflict conflicts[DISPLAY_MAX_CONFLICTS];
+
 /** Initialize display module.
  */
 void display_init(void) {
@@ -59,6 +66,9 @@ void display_init(void) {
 
     hb_pos = 0;
     hb_fullcount = 0;
+
+    cf_count = 0;
+    memset(conflicts, 0, sizeof(conflict)*DISPLAY_MAX_CONFLICTS);
 
     T2CONbits.T32 = 1;
     T2CONbits.TCKPS = 0;
@@ -184,6 +194,9 @@ void display_process(void) {
             process_activerow %= DISPLAY_ROWS;
             if (process_activerow == 0) {   // scanned through entire array
                 display_hbupdate();
+                cf_count = (cf_count + 1) % (DISPLAY_SCAN_FREQ * DISPLAY_FLASH_PERIOD);
+                if (!cf_count)
+                    conflict_process();
             }
             continue;
         }
@@ -267,6 +280,9 @@ void display_process(void) {
             process_pwmpos = 0;
             if (process_activerow == 0) {   // scanned through entire array
                 display_hbupdate();
+                cf_count = (cf_count + 1) % (DISPLAY_SCAN_FREQ * DISPLAY_FLASH_PERIOD);
+                if (!cf_count)
+                    conflict_process();
             }
         }
     }
@@ -284,7 +300,12 @@ static void display_setholds(route *sroute) {
         blank = 0;
         int r = sroute->holds[i] >> 4;
         int c = sroute->holds[i] & 0xF;
-        rows[r].holds[c] = sroute;
+
+        if (rows[r].holds[c])
+            conflict_add(sroute->holds[i], sroute);
+        else
+            rows[r].holds[c] = sroute;
+        
         rows[r].enabled = 1;
         if (rows[r].maxbrightness < mbright)
             rows[r].maxbrightness = mbright;
@@ -315,11 +336,13 @@ static void display_row_recalc(row *r) {
  */
 static void display_clearholds(route *sroute) {
     int i;
+    route *tmp;
 
     for (i = 0; i < sroute->len; i++) {
         int r = sroute->holds[i] >> 4;
         int c = sroute->holds[i] & 0xF;
-        rows[r].holds[c] = NULL;
+        if (rows[r].holds[c] == sroute)
+            rows[r].holds[c] = NULL;
         display_row_recalc(&rows[r]);
     }
 }
@@ -332,6 +355,7 @@ void display_showroute(route *theroute) {
     for (i = 0; i < DISPLAY_MAX_ROUTES; i++)
         if (routes[i].id == theroute->id) {
             display_clearholds(&routes[i]);   // route already displayed, remove and then re-add
+            conflict_remove(&routes[i]);
             break;
         }
 
@@ -358,6 +382,7 @@ void display_hideroute(unsigned int id) {
     for (i = 0; i < DISPLAY_MAX_ROUTES; i++)
         if (routes[i].id == id) {
             display_clearholds(&routes[i]);
+            conflict_remove(&routes[i]);
             routes[i].id = 0;
             routes[i].len = 0;
         }
@@ -397,8 +422,90 @@ void display_clearroutes(void) {
         for (j = 0; j < DISPLAY_COLS; j++)
             rows[i].holds[j] = NULL;
 
+    for (i = 0; i < DISPLAY_MAX_CONFLICTS; i++)
+        conflicts[i].route = NULL;
+
     fifo_clear();
     display_disable();
+}
+
+/** Process conflict list, replacing active holds on display with those in the list.
+ */
+static void conflict_process(void) {
+    route *tmp;
+    conflict *cf;
+    int i;
+
+    for (i = 0; i < DISPLAY_MAX_CONFLICTS; i++) {
+        cf = &conflicts[i];
+        if (cf->route && cf->head) {    // we have a conflict
+            tmp = rows[cf->row].holds[cf->col];
+            rows[cf->row].holds[cf->col] = cf->route;   // replace displayed hold with list head
+            while (cf->next) {
+                if (cf->next->route) {                          // bubble forward every hold in the list
+                    cf->route = cf->next->route;
+                    cf = cf->next;
+                } else {
+                    cf->next = NULL;
+                }
+            }
+            cf->route = tmp;                            // place old displayed hold at end of the list
+
+            // TODO: recalc row?
+        }
+    }
+}
+
+/** Add an entry to the conflict list.
+ */
+static void conflict_add(unsigned char pos, route *theroute) {
+    conflict *gt2tail = NULL;
+    conflict *cf;
+    int i;
+    
+    for (i = 0; i < DISPLAY_MAX_CONFLICTS; i++)
+        if (conflicts[i].pos == pos && conflicts[i].route && !conflicts[i].next)
+            gt2tail = &conflicts[i];
+
+    for (i = 0; i < DISPLAY_MAX_CONFLICTS; i++)
+        if (!conflicts[i].route) {
+            cf = &conflicts[i];
+            if (gt2tail) {
+                gt2tail->next = cf;
+                cf->head = 0;
+            } else {
+                cf->head = 1;
+            }
+            cf->pos = pos;
+            cf->route = theroute;
+            cf->next = NULL;
+            break;
+        }
+}
+
+/** Remove all conflict instances for the route passed.
+ */
+static void conflict_remove(route *theroute) {
+    conflict *cf;
+    int i;
+
+    for (i = 0; i < DISPLAY_MAX_CONFLICTS; i++)
+        if (conflicts[i].route == theroute) {       // we have a match
+            cf = &conflicts[i];
+            if (cf->next) {     // if it has a next, move it to here, and null the next
+                cf->route = cf->next->route;
+                cf->next->route = NULL;
+                cf->next = cf->next->next;  // could be NULL, don't care
+            } else {    // no next, remove this conflict
+                cf->route = NULL;
+            }
+        }
+
+    for (i = 0; i < DISPLAY_MAX_CONFLICTS; i++) // clean up next fields that point to NULL conflict
+        if (conflicts[i].next)
+            if (conflicts[i].next->route == NULL)
+                conflicts[i].next = NULL;
+
 }
 
 /** Get entry from the FIFO.
