@@ -29,7 +29,7 @@ extern "C" {
 
 #define DISPLAY_FIFO_LEN        32          /**< Size of display output FIFO. */
 
-#define DISPLAY_ROWS            16          /**< Number of Rows in display. */
+#define DISPLAY_ROWS            8           /**< Number of Rows in display. */
 #define DISPLAY_COLS            16          /**< Number of Cols in display. */
 
 #define DISPLAY_FLASH_PERIOD        2       /**< Time between color cycles on conflicted holds. */
@@ -86,6 +86,8 @@ void display_process(void);
 void display_showroute(route *);
 void display_hideroute(unsigned int);
 void display_clearroutes(void);
+
+inline unsigned char display_translate(unsigned char);
 
 
 #ifdef	__cplusplus

@@ -70,11 +70,11 @@ void display_init(void) {
     cf_count = 0;
     memset(conflicts, 0, sizeof(conflict)*DISPLAY_MAX_CONFLICTS);
 
-    T2CONbits.T32 = 1;
+    T2CONbits.T32 = 0;
     T2CONbits.TCKPS = 0;
 
-    timer_period = CLOCK_FREQUENCY / DISPLAY_SCAN_FREQ / 32;
-    PR3 = timer_period >> 16;
+    timer_period = CLOCK_FREQUENCY / DISPLAY_SCAN_FREQ / DISPLAY_COLOR_DEPTH / DISPLAY_ROWS;
+//    PR3 = timer_period >> 16;
     PR2 = (unsigned int)(timer_period & 0xFFFF);
     
 }
@@ -88,15 +88,15 @@ void display_enable(void) {
     timer_activerow = DISPLAY_ROWS;
 
     TMR2 = 0;
-    TMR3 = 0;
-    _T3IE = 1;
+//    TMR3 = 0;
+    _T2IE = 1;
     T2CONbits.TON = 1;
-    _T3IP = DISPLAY_INT_PRIORITY;
+    _T2IP = DISPLAY_INT_PRIORITY;
 
     if (fifo_empty())
         display_process();
     else
-        _T3IF = 1;
+        _T2IF = 1;
 }
 
 /** Disable display output.
@@ -110,14 +110,14 @@ void display_disable(void) {
 /** Timer3 Interrupt Service Routine.
  * Update the display frame.
  */
-void __attribute__((interrupt, auto_psv)) _T3Interrupt(void) {
-    _T3IF = 0;
+void __attribute__((interrupt, auto_psv)) _T2Interrupt(void) {
+    _T2IF = 0;
 
     if (!display_enabled) { // if disabled, clear the display, stop timer
         ledrow_disable();   // cut row driver
         ledcol_clear();     // cut column drive
         T2CONbits.TON = 0;
-        _T3IE = 0;
+        _T2IE = 0;
         return;
     }
 
@@ -139,6 +139,7 @@ void __attribute__((interrupt, auto_psv)) _T3Interrupt(void) {
         timer_repeat = dd.repeat;
     } else {
         fifo_misses++;
+        timer_repeat++;
     }
 }
 
@@ -157,10 +158,10 @@ static void display_frequpdate(void) {
         pulse_count = 32;
 
     timer_period = CLOCK_FREQUENCY / DISPLAY_SCAN_FREQ / pulse_count;
-    PR3 = timer_period >> 16;
+//    PR3 = timer_period >> 16;
     PR2 = (unsigned int)(timer_period & 0xFFFF);
     TMR2 = 0;
-    TMR3 = 0;
+//    TMR3 = 0;
 }
 
 inline void display_hbupdate(void) {
@@ -298,11 +299,13 @@ static void display_setholds(route *sroute) {
 
     for (i = 0; i < sroute->len; i++) {
         blank = 0;
-        int r = sroute->holds[i] >> 4;
-        int c = sroute->holds[i] & 0xF;
+        int ppos = display_translate(sroute->holds[i]);
+
+        int r = ppos >> 4;
+        int c = ppos & 0xF;
 
         if (rows[r].holds[c])
-            conflict_add(sroute->holds[i], sroute);
+            conflict_add(ppos, sroute);
         else
             rows[r].holds[c] = sroute;
         
@@ -339,8 +342,9 @@ static void display_clearholds(route *sroute) {
     route *tmp;
 
     for (i = 0; i < sroute->len; i++) {
-        int r = sroute->holds[i] >> 4;
-        int c = sroute->holds[i] & 0xF;
+        int ppos = display_translate(sroute->holds[i]);
+        int r = ppos >> 4;
+        int c = ppos & 0xF;
         if (rows[r].holds[c] == sroute)
             rows[r].holds[c] = NULL;
         display_row_recalc(&rows[r]);
@@ -371,6 +375,7 @@ void display_showroute(route *theroute) {
         routes[i].b >>= (8 - DISPLAY_COLOR_DEPTH_BITS);
         display_setholds(&routes[i]);
         display_frequpdate();
+        fifo_clear();
     }
 }
 
@@ -393,9 +398,9 @@ void display_hideroute(unsigned int id) {
 
     if (nblank) {
         blank = 1;
-        _T3IE = 0;          // TODO: is there a cleaner way to do this, is this safe?
+        _T2IE = 0;          // TODO: is there a cleaner way to do this, is this safe?
         ledcol_clear();
-        _T3IE = 1;
+        _T2IE = 1;
     }
 
     fifo_clear();
@@ -409,9 +414,9 @@ void display_clearroutes(void) {
 
     blank = 1;
 
-    _T3IE = 0;          // TODO: is there a cleaner way to do this, is this safe?
+    _T2IE = 0;          // TODO: is there a cleaner way to do this, is this safe?
     ledcol_clear();
-    _T3IE = 1;
+    _T2IE = 1;
 
     for (i = 0; i < DISPLAY_MAX_ROUTES; i++) {
         routes[i].id = 0;
@@ -506,6 +511,27 @@ static void conflict_remove(route *theroute) {
             if (conflicts[i].next->route == NULL)
                 conflicts[i].next = NULL;
 
+}
+
+/** Translate logical position to physical position.
+ */
+inline unsigned char display_translate(unsigned char lpos) {
+    unsigned char ppos = lpos & 0xF;
+    unsigned char p;
+
+    if (lpos % 2) { // odd column
+        if ((p = (lpos & 0xF0)) < 64)  // bottom half
+            ppos += p << 1;
+        else
+            ppos += ((p - 64) << 1) + 16;
+    } else {
+        if ((p = (lpos & 0xF0)) < 64)
+            ppos += (p << 1) + 16;
+        else
+            ppos += ((p - 64) << 1);
+    }
+
+    return ppos;
 }
 
 /** Get entry from the FIFO.

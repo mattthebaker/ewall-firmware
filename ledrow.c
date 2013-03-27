@@ -32,10 +32,8 @@ void ledrow_switch(unsigned int row) {
  * The previously enabled row will be turned on.
  */
 inline void ledrow_enable(void) {
-    if (selected_row / 8)            // enable selected row
-        LEDROW_PORT_RBEN = 1;
-    else
-        LEDROW_PORT_RAEN = 1;
+    LEDROW_PORT_RBEN = 1;
+    LEDROW_PORT_RAEN = 1;
 }
 
 /** Disable Row Drive.
